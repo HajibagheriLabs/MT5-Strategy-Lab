@@ -209,9 +209,11 @@ def _settings_and_results(table: Tag) -> tuple[ReportSettings, dict[str, str]]:
     summary: dict[str, str] = {}
     for row in rows[headings[3] + 1 :]:
         texts = [_text(c) for c in _cells(row)]
-        for label, value in zip(texts[::2], texts[1::2], strict=False):
+        # Some rows start with an empty spacer cell, so pair each label with the cell after it
+        # rather than taking cells two by two.
+        for index, label in enumerate(texts[:-1]):
             if label.endswith(":"):
-                summary[label[:-1].strip()] = value
+                summary[label[:-1].strip()] = texts[index + 1]
     return settings, summary
 
 

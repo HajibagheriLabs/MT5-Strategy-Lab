@@ -95,6 +95,11 @@ class TestProfitableReport:
         assert summary["Balance Drawdown Maximal"] == "684.68 (5.87%)"
         assert summary["Equity Drawdown Relative"] == "7.50% (842.03)"
         assert summary["Ticks"] == "1452013"
+        assert summary["Largest profit trade"] == "640.76"
+        assert summary["Average loss trade"] == "-18.14"
+        assert summary["Maximal consecutive loss (count)"] == "-209.23 (3)"
+        assert summary["Average consecutive losses"] == "3"
+        assert len(summary) == 46
 
     def test_deals(self, profitable):
         deals = profitable.deals
