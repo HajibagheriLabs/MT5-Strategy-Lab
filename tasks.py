@@ -26,6 +26,8 @@ FRONTEND = ROOT / "frontend"
 VENV = ROOT / ".venv"
 WINDOWS = os.name == "nt"
 VENV_PYTHON = VENV / ("Scripts/python.exe" if WINDOWS else "bin/python")
+# Uploaded strategies are arbitrary code: the API is never reachable from another machine.
+BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8000
 
 TASKS: dict[str, Callable[[list[str]], int]] = {}
@@ -166,9 +168,10 @@ def dev(args: list[str]) -> int:
         str(python),
         "-m",
         "uvicorn",
-        "strategylab.api:app",
+        "--factory",
+        "strategylab.api:create_app",
         "--host",
-        "127.0.0.1",
+        BACKEND_HOST,
         "--port",
         str(BACKEND_PORT),
         "--reload",
