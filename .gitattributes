@@ -1,0 +1,2 @@
+# Captured MetaTrader output is UTF-16 with CRLF line endings; keep it byte for byte.
+tests/fixtures/** -text
