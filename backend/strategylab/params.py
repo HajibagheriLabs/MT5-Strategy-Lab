@@ -456,7 +456,7 @@ class SetFile:
 
 def parse_set_text(text: str) -> SetFile:
     lines: list[str | SetEntry] = []
-    for raw in text.lstrip("﻿").splitlines():
+    for raw in text.lstrip("\ufeff").splitlines():
         stripped = raw.strip()
         if not stripped or stripped.startswith(";") or "=" not in stripped:
             lines.append(raw)
