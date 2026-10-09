@@ -1,4 +1,4 @@
-"""One MQL5 backtest end to end: compile, find the server clock, run the tester, normalise."""
+"""Backtests end to end: an MQL5 strategy in the Strategy Tester, a Python one in the simulator."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 from strategylab.compiler import CompileResult, StagedStrategy, compile_upload
 from strategylab.config import Settings, TerminalRunningError, ensure_terminal_idle
 from strategylab.metrics import compute_metrics
-from strategylab.mt5_data import MT5DataError, ensure_server_clock
+from strategylab.mt5_data import MT5DataError, ensure_server_clock, export_history
 from strategylab.params import (
     ParamsError,
     SetFile,
@@ -22,6 +22,8 @@ from strategylab.params import (
 from strategylab.report import to_result
 from strategylab.result import BacktestResult, TickModel
 from strategylab.server_clock import ClockError, ServerClock
+from strategylab.sim.runner import DEFAULT_TIMEOUT_S as PYTHON_TIMEOUT_S
+from strategylab.sim.runner import Granularity, PythonRunSpec, SimRun, run_python_backtest
 from strategylab.tester import (
     DEFAULT_TIMEOUT_S,
     FIDELITY,
@@ -171,4 +173,67 @@ def run_mql5_backtest(
     run.result = result
     run.result_path = run_dir / "result.json"
     run.result_path.write_text(result.model_dump_json(indent=1), encoding="utf-8")
+    return run
+
+
+def run_python_strategy(
+    script: Path,
+    settings: Settings,
+    *,
+    symbol: str,
+    timeframe: str,
+    date_from: date,
+    date_to: date,
+    deposit: float = 10_000.0,
+    currency: str = "USD",
+    leverage: int = 100,
+    commission_per_lot: float = 0.0,
+    granularity: Granularity = "m1_ohlc",
+    timeout_s: float = PYTHON_TIMEOUT_S,
+) -> SimRun:
+    """Export the history a Python strategy needs, then run it in the simulator."""
+    cache = settings.workspace_dir / "cache"
+    bundle = export_history(
+        settings.terminal,
+        cache,
+        symbol,
+        timeframe,
+        date_from,
+        date_to,
+        with_ticks=granularity == "ticks",
+    )
+    clock: ServerClock | None = None
+    notes: list[str] = []
+    try:
+        clock = measure_clock(settings, date_from, date_to)
+    except (ClockError, MT5DataError) as exc:
+        notes.append(f"Deal times are server time only: {exc}")
+    spec = PythonRunSpec(
+        script=script,
+        symbol=symbol,
+        timeframe=timeframe,
+        date_from=date_from,
+        date_to=date_to,
+        deposit=deposit,
+        currency=currency,
+        leverage=leverage,
+        commission_per_lot=commission_per_lot,
+        granularity=granularity,
+    )
+    run_id = new_run_id()
+    run = run_python_backtest(
+        spec,
+        m1=bundle.m1,
+        spec_file=bundle.spec,
+        history=bundle.history,
+        ticks=bundle.ticks,
+        run_dir=settings.workspace_dir / "runs" / run_id,
+        run_id=run_id,
+        server=bundle.server,
+        clock=clock,
+        timeout_s=timeout_s,
+    )
+    if run.result is not None and notes:
+        run.result.meta.notes.extend(notes)
+        run.result_path.write_text(run.result.model_dump_json(indent=1), encoding="utf-8")
     return run
