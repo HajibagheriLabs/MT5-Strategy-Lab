@@ -1,0 +1,25 @@
+import importlib
+
+import pytest
+
+MODULES = [
+    "strategylab.api",
+    "strategylab.compiler",
+    "strategylab.config",
+    "strategylab.jobs",
+    "strategylab.metrics",
+    "strategylab.mt5_data",
+    "strategylab.params",
+    "strategylab.report",
+    "strategylab.store",
+    "strategylab.tester",
+    "strategylab.sim.broker",
+    "strategylab.sim.clock",
+    "strategylab.sim.runner",
+    "strategylab.sim.shim",
+]
+
+
+@pytest.mark.parametrize("name", MODULES)
+def test_module_imports(name):
+    importlib.import_module(name)

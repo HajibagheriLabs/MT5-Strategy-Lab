@@ -1,0 +1,29 @@
+line-length = 100
+target-version = "py311"
+# tasks.py runs before the venv exists, on whatever Python is on PATH.
+per-file-target-version = { "tasks.py" = "py310" }
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # import order
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+    "N",    # naming
+    "ANN",  # type annotations
+    "PTH",  # pathlib over os.path
+]
+ignore = [
+    "ANN401",  # Any is sometimes the honest type at an I/O boundary
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["ANN"]
+"samples/**" = ["ANN"]
+
+[lint.isort]
+known-first-party = ["strategylab"]
