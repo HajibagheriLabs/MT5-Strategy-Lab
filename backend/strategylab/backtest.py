@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import Any
 
-from strategylab.compiler import CompileResult, StagedStrategy, compile_upload
+from strategylab.compiler import CompileResult, StagedStrategy, compile_strategy, stage_upload
 from strategylab.config import Settings, TerminalRunningError, ensure_terminal_idle
 from strategylab.metrics import compute_metrics
 from strategylab.mt5_data import MT5DataError, ensure_server_clock, export_history
@@ -41,6 +43,33 @@ class CompileFailedError(Exception):
     def __init__(self, result: CompileResult) -> None:
         self.result = result
         super().__init__(f"{result.strategy.entry} did not compile ({len(result.errors)} errors).")
+
+
+class RunCancelledError(Exception):
+    """The run was cancelled before the engine started."""
+
+
+@dataclass
+class Hooks:
+    """How a caller follows and stops a run. Every part is optional."""
+
+    on_stage: Callable[[str], None] | None = None
+    """Called with compiling, running or parsing as the run reaches each."""
+    on_log: Callable[[str, str], None] | None = None
+    """Called with (source, line) for compile messages, journals and strategy output."""
+    cancel: threading.Event | None = None
+
+    def stage(self, name: str) -> None:
+        if self.on_stage is not None:
+            self.on_stage(name)
+
+    def log(self, source: str, line: str) -> None:
+        if self.on_log is not None:
+            self.on_log(source, line)
+
+    def check(self) -> None:
+        if self.cancel is not None and self.cancel.is_set():
+            raise RunCancelledError
 
 
 def measure_clock(settings: Settings, start: date, end: date) -> ServerClock:
@@ -94,8 +123,14 @@ class BacktestRun:
     notes: list[str] = field(default_factory=list)
 
 
-def run_mql5_backtest(
-    upload: Path,
+def run_mql5_backtest(upload: Path, settings: Settings, **options: Any) -> BacktestRun:
+    """Stage an uploaded .mq5, .ex5 or .zip, then run it (see run_staged_mql5)."""
+    staged = stage_upload(upload, settings.terminal.strategies_dir)
+    return run_staged_mql5(staged, settings, **options)
+
+
+def run_staged_mql5(
+    staged: StagedStrategy,
     settings: Settings,
     *,
     symbol: str,
@@ -109,9 +144,15 @@ def run_mql5_backtest(
     parameters: Mapping[str, str] | None = None,
     timeout_s: float = DEFAULT_TIMEOUT_S,
     clock_provider: ClockProvider = measure_clock,
+    run_id: str | None = None,
+    hooks: Hooks | None = None,
 ) -> BacktestRun:
+    hooks = hooks or Hooks()
     install = settings.terminal
-    compiled = compile_upload(upload, install)
+    hooks.stage("compiling")
+    compiled = compile_strategy(staged, install)
+    for diagnostic in compiled.diagnostics:
+        hooks.log("compile", str(diagnostic))
     if not compiled.ok:
         raise CompileFailedError(compiled)
 
@@ -131,10 +172,12 @@ def run_mql5_backtest(
         parameters=values,
     )
     spec.validate()
-    run_id = new_run_id()
+    run_id = run_id or new_run_id()
     run_dir = settings.workspace_dir / "runs" / run_id
     notes: list[str] = list(parameter_notes)
 
+    hooks.check()
+    hooks.stage("running")
     clock: ServerClock | None = None
     try:
         # Measuring the clock attaches to the terminal; skip it when the tester will refuse anyway.
@@ -145,8 +188,17 @@ def run_mql5_backtest(
     except (ClockError, MT5DataError) as exc:
         notes.append(f"Deal times are server time only: {exc}")
 
+    hooks.check()
     tester = run_tester(
-        spec, install, run_dir, run_id=run_id, timeout_s=timeout_s, parameter_file=parameter_file
+        spec,
+        install,
+        run_dir,
+        run_id=run_id,
+        timeout_s=timeout_s,
+        parameter_file=parameter_file,
+        cancel=hooks.cancel,
+        on_log=hooks.log,
+        on_parsing=lambda: hooks.stage("parsing"),
     )
     run = BacktestRun(compile=compiled, tester=tester, notes=notes)
     if tester.parsed is None:
@@ -192,9 +244,15 @@ def run_python_strategy(
     granularity: Granularity = "m1_ohlc",
     timeout_s: float = PYTHON_TIMEOUT_S,
     args: tuple[str, ...] = (),
+    constants: dict[str, Any] | None = None,
+    run_id: str | None = None,
+    hooks: Hooks | None = None,
 ) -> SimRun:
     """Export the history a Python strategy needs, then run it in the simulator."""
+    hooks = hooks or Hooks()
+    hooks.stage("running")
     cache = settings.workspace_dir / "cache"
+    hooks.log("stage", f"Exporting {symbol} history from the terminal.")
     bundle = export_history(
         settings.terminal,
         cache,
@@ -204,6 +262,7 @@ def run_python_strategy(
         date_to,
         with_ticks=granularity == "ticks",
     )
+    hooks.check()
     clock: ServerClock | None = None
     notes: list[str] = []
     try:
@@ -229,8 +288,11 @@ def run_python_strategy(
         commission_per_lot=commission_per_lot,
         granularity=granularity,
         args=tuple(args),
+        constants=dict(constants or {}),
     )
-    run_id = new_run_id()
+    run_id = run_id or new_run_id()
+    hooks.check()
+    hooks.log("stage", "Starting the strategy in the simulator.")
     run = run_python_backtest(
         spec,
         m1=bundle.m1,
@@ -243,6 +305,9 @@ def run_python_strategy(
         server=bundle.server,
         clock=clock,
         timeout_s=timeout_s,
+        cancel=hooks.cancel,
+        on_log=lambda line: hooks.log("strategy", line),
+        on_parsing=lambda: hooks.stage("parsing"),
     )
     if run.result is not None and notes:
         run.result.meta.notes.extend(notes)

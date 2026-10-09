@@ -417,6 +417,17 @@ def _staged_from_manifest(folder: Path, manifest: Mapping[str, object]) -> Stage
     return staged
 
 
+def load_staged(folder: Path) -> StagedStrategy:
+    """A strategy staged earlier, from its folder."""
+    manifest = _read_manifest(folder)
+    staged = _staged_from_manifest(folder, manifest) if manifest is not None else None
+    if staged is None:
+        raise UploadError(
+            f"The strategy folder {folder} is missing or incomplete; upload the strategy again."
+        )
+    return staged
+
+
 def stage_files(
     files: Mapping[str, bytes],
     kind: UploadKind,
