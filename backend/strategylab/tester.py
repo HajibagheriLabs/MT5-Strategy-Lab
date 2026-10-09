@@ -12,6 +12,7 @@ import codecs
 import re
 import shutil
 import subprocess
+import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping
@@ -62,6 +63,7 @@ FIDELITY = {
 }
 DEFAULT_TIMEOUT_S = 1800.0
 STOP_GRACE_S = 30.0
+POLL_S = 0.5
 REPORTS_SUBDIR = PureWindowsPath("StrategyLab", "reports")
 PARAMETER_FILE_PREFIX = "strategylab-"
 # A launch that the already running terminal swallows comes back almost at once.
@@ -78,6 +80,7 @@ class Outcome(StrEnum):
     NO_REPORT = "no_report"
     TIMEOUT = "timeout"
     TERMINAL_RUNNING = "terminal_running"
+    CANCELLED = "cancelled"
 
 
 class SpecError(ValueError):
@@ -194,6 +197,8 @@ class Process(Protocol):
 
 Launcher = Callable[[str], Process]
 Stopper = Callable[[int, float], StopOutcome]
+LogSink = Callable[[str, str], None]
+"""Receives (journal kind, line) as the run writes them."""
 
 
 def launch_terminal(command: str) -> Process:
@@ -218,6 +223,8 @@ class LogCursor:
 
     data_dir: Path
     sizes: dict[Path, int] = field(default_factory=dict)
+    _read_to: dict[Path, int] = field(default_factory=dict)
+    _partial: dict[Path, str] = field(default_factory=dict)
 
     def _files(self) -> dict[str, list[Path]]:
         found: dict[str, list[Path]] = {}
@@ -249,6 +256,34 @@ class LogCursor:
                 parts.append(text.lstrip("\ufeff"))
             collected[kind] = "".join(parts)
         return collected
+
+    def poll(self) -> list[tuple[str, str]]:
+        """Complete lines written since the last poll, as (kind, line), for following a run live.
+
+        The terminal keeps its journals open while it runs; a file it holds without sharing is
+        skipped until the next poll.
+        """
+        lines: list[tuple[str, str]] = []
+        for kind, files in self._files().items():
+            for path in files:
+                start = self._read_to.get(path, self.sizes.get(path, 0))
+                try:
+                    with path.open("rb") as handle:
+                        handle.seek(start)
+                        raw = handle.read()
+                except OSError:
+                    continue
+                raw = raw[: len(raw) - len(raw) % 2]
+                if not raw:
+                    continue
+                self._read_to[path] = start + len(raw)
+                text = raw.decode("utf-16-le", "replace").lstrip("\ufeff")
+                text = self._partial.pop(path, "") + text
+                *complete, rest = text.split("\n")
+                if rest:
+                    self._partial[path] = rest
+                lines.extend((kind, line.rstrip("\r")) for line in complete if line.strip())
+        return lines
 
 
 def signed_exit_code(code: int | None) -> int | None:
@@ -292,6 +327,32 @@ def new_run_id() -> str:
     return f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
 
 
+def wait_for(
+    process: Process,
+    timeout_s: float,
+    cancel: threading.Event | None = None,
+    tick: Callable[[], None] | None = None,
+) -> tuple[int | None, str | None]:
+    """Wait for the process to exit: (exit code, None), or (None, "timeout" or "cancelled").
+
+    `tick` runs between waits, which is where a caller follows the logs.
+    """
+    deadline = time.monotonic() + timeout_s
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, "timeout"
+        try:
+            return process.wait(timeout=min(POLL_S, remaining)), None
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            if tick is not None:
+                tick()
+        if cancel is not None and cancel.is_set():
+            return None, "cancelled"
+
+
 def run_tester(
     spec: BacktestSpec,
     install: TerminalInstall,
@@ -302,7 +363,13 @@ def run_tester(
     launcher: Launcher = launch_terminal,
     stopper: Stopper = stop_process,
     parameter_file: SetFile | None = None,
+    cancel: threading.Event | None = None,
+    on_log: LogSink | None = None,
+    on_parsing: Callable[[], None] | None = None,
 ) -> TesterRun:
+    """Run one backtest. Setting `cancel` closes the terminal (killing it if it will not close)
+    and ends the run as cancelled; `on_log` receives journal lines while the terminal runs;
+    `on_parsing` is called before the report is read."""
     spec.validate()
     run_id = run_id or new_run_id()
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -333,19 +400,32 @@ def run_tester(
     run.config_path = config_path
 
     cursor = LogCursor.start(install.data_dir)
+    follower = LogCursor.start(install.data_dir)
+
+    def follow() -> None:
+        if on_log is not None:
+            for kind, line in follower.poll():
+                on_log(kind, line)
+
     started = time.monotonic()
     try:
         process = launcher(launch_command(install, config_path))
-        try:
-            run.exit_code = signed_exit_code(process.wait(timeout=timeout_s))
-        except subprocess.TimeoutExpired:
+        code, stopped_by = wait_for(process, timeout_s, cancel, follow)
+        if stopped_by is None:
+            run.exit_code = signed_exit_code(code)
+        else:
             run.stop = stopper(process.pid, STOP_GRACE_S)
-            run.outcome = Outcome.TIMEOUT
-            run.message = (
-                f"The tester did not finish within {timeout_s:.0f} s; the terminal was "
-                f"{'closed' if run.stop != 'killed' else 'killed after not closing'}. Use a "
-                "shorter range or a faster tick model, or raise the timeout."
-            )
+            how = "closed" if run.stop != "killed" else "killed after not closing"
+            if stopped_by == "cancelled":
+                run.outcome = Outcome.CANCELLED
+                run.message = f"Cancelled; the terminal was {how}."
+            else:
+                run.outcome = Outcome.TIMEOUT
+                run.message = (
+                    f"The tester did not finish within {timeout_s:.0f} s; the terminal was "
+                    f"{how}. Use a shorter range or a faster tick model, or raise the timeout."
+                )
+        follow()
     finally:
         run.elapsed_s = time.monotonic() - started
         journals = cursor.collect()
@@ -367,7 +447,7 @@ def run_tester(
         run.report_path = target / "report.htm"
     shutil.rmtree(report_dir, ignore_errors=True)
 
-    if run.outcome is Outcome.TIMEOUT:
+    if run.outcome in (Outcome.TIMEOUT, Outcome.CANCELLED):
         return run
 
     launched = str(config_path).lower() in journals.get("terminal", "").lower()
@@ -390,6 +470,8 @@ def run_tester(
         )
         return run
 
+    if on_parsing is not None:
+        on_parsing()
     try:
         run.parsed = parse_report(run.report_path)
     except ReportError as exc:

@@ -2,6 +2,8 @@ import codecs
 import re
 import shutil
 import subprocess
+import threading
+import time
 from datetime import date
 from pathlib import Path, PureWindowsPath
 
@@ -85,6 +87,7 @@ class FakeTerminal:
 
     def wait(self, timeout=None):
         if self.hang:
+            time.sleep(min(timeout or 0, 0.01))
             raise subprocess.TimeoutExpired(self.command, timeout)
         config_path = Path(re.search(r'/config:"([^"]+)"', self.command).group(1))
         self.config = config_path.read_bytes().decode("utf-16")
@@ -308,13 +311,62 @@ class TestRun:
             return "closed"
 
         run = self.run(
-            install, tmp_path, FakeTerminal(install, hang=True), timeout_s=5, stopper=stopper
+            install, tmp_path, FakeTerminal(install, hang=True), timeout_s=1, stopper=stopper
         )
         assert run.outcome is Outcome.TIMEOUT
         assert stopped == [4242]
         assert run.stop == "closed"
-        assert "within 5 s" in run.message
+        assert "within 1 s" in run.message
         assert not (install.mql5_dir / "Profiles" / "Tester" / "strategylab-run1.set").exists()
+
+    def test_cancel_closes_the_terminal(self, install, tmp_path):
+        stopped = []
+        cancel = threading.Event()
+        cancel.set()
+        run = self.run(
+            install,
+            tmp_path,
+            FakeTerminal(install, hang=True),
+            cancel=cancel,
+            stopper=lambda pid, grace: stopped.append(pid) or "killed",
+        )
+        assert run.outcome is Outcome.CANCELLED
+        assert stopped == [4242]
+        assert run.message == "Cancelled; the terminal was killed after not closing."
+        assert run.parsed is None
+
+    def test_journal_lines_are_followed_while_the_terminal_runs(self, install, tmp_path):
+        agent_log = install.data_dir / "Tester" / "Agent-127.0.0.1-3000" / "logs" / "1.log"
+        agent_log.parent.mkdir(parents=True)
+
+        class Slow(FakeTerminal):
+            calls = 0
+
+            def wait(self, timeout=None):
+                self.calls += 1
+                if self.calls == 1:
+                    append_journal(agent_log, ["CS\t0\t10:00:01.000\tTester\tpassed 10%"])
+                    # Half a line: it is only reported once it is complete.
+                    with agent_log.open("ab") as handle:
+                        handle.write(utf16("CS\t0\t10:00:02.000\tTester\tfin"))
+                    raise subprocess.TimeoutExpired(self.command, timeout)
+                with agent_log.open("ab") as handle:
+                    handle.write(utf16("al balance\r\n"))
+                return super().wait(timeout)
+
+        seen, parsing = [], []
+        run = self.run(
+            install,
+            tmp_path,
+            Slow(install, report=REPORTS / "ma_eurusd_h1_2025.htm"),
+            on_log=lambda kind, line: seen.append((kind, line)),
+            on_parsing=lambda: parsing.append(True),
+        )
+        assert run.outcome is Outcome.SUCCESS
+        assert ("agent", "CS\t0\t10:00:01.000\tTester\tpassed 10%") in seen
+        assert ("agent", "CS\t0\t10:00:02.000\tTester\tfinal balance") in seen
+        assert any(kind == "terminal" and "launched with" in line for kind, line in seen)
+        assert parsing == [True]
 
     def test_launch_swallowed_by_a_running_terminal(self, install, tmp_path):
         run = self.run(install, tmp_path, FakeTerminal(install, read_config=False))
