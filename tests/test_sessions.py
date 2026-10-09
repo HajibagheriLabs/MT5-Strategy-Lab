@@ -81,3 +81,25 @@ def test_without_sessions_everything_is_tradable_and_said_so():
     _, broker, _, _ = simulation(m1, ms(2025, 1, 7), ms(2025, 1, 7, 0, 5))
     assert broker._tradable.all()
     assert any("trading sessions were not known" in note for note in broker.notes)
+
+
+@pytest.mark.mt5
+def test_sessions_come_from_the_terminal(tmp_path):
+    from strategylab.config import load_settings
+    from strategylab.sessions import export_sessions
+
+    settings = load_settings()
+    symbols = [
+        p.name
+        for server in settings.terminal.history_servers()
+        for p in (settings.terminal.data_dir / "bases" / server / "history").iterdir()
+        if p.name.upper().startswith("EURUSD")
+    ]
+    if not symbols:
+        pytest.skip("no EURUSD history in the terminal yet")
+    path = export_sessions(settings.terminal, symbols[0], tmp_path, tmp_path / "runs")
+    sessions = Sessions.from_json(path.read_text(encoding="utf-8"))
+    weekdays = [sessions.trade[day] for day in range(1, 6)]
+    assert all(weekdays), "every weekday should have a trade session"
+    for spans in (*sessions.trade.values(), *sessions.quote.values()):
+        assert all(0 <= start < end <= 86_400 for start, end in spans)
