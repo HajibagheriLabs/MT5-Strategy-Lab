@@ -1,0 +1,12 @@
+*.local.json
+.env
+local.toml
+workspace/
+*.ex5
+*.sqlite
+*.parquet
+node_modules/
+dist/
+__pycache__/
+.venv/
+*.egg-info/
