@@ -7,9 +7,18 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from strategylab.compiler import CompileResult, compile_upload
+from strategylab.compiler import CompileResult, StagedStrategy, compile_upload
 from strategylab.config import Settings, TerminalRunningError, ensure_terminal_idle
+from strategylab.metrics import compute_metrics
 from strategylab.mt5_data import MT5DataError, ensure_server_clock
+from strategylab.params import (
+    ParamsError,
+    SetFile,
+    build_set,
+    discover,
+    read_set,
+    validate_value,
+)
 from strategylab.report import to_result
 from strategylab.result import BacktestResult, TickModel
 from strategylab.server_clock import ClockError, ServerClock
@@ -39,6 +48,38 @@ def measure_clock(settings: Settings, start: date, end: date) -> ServerClock:
         start,
         end,
     )
+
+
+def prepare_parameters(
+    staged: StagedStrategy, overrides: Mapping[str, str]
+) -> tuple[SetFile | None, dict[str, str], list[str]]:
+    """The .set file for the tester, the overrides in the tester's form, and notes for the user.
+
+    With source, every override is checked against the declared inputs and a complete .set is
+    written. A prebuilt .ex5 shipped with a .set file uses that file with the overrides applied.
+    A bare .ex5 can only pass overrides through as written.
+    """
+    set_files = sorted(name for name in staged.files if name.lower().endswith(".set"))
+    shipped = staged.folder / set_files[0] if staged.prebuilt and set_files else None
+    discovery = discover(staged.entry_path, staged.folder, shipped)
+    notes = [discovery.note] if discovery.note else []
+    if discovery.source == "source":
+        by_name = {param.name: param for param in discovery.params}
+        unknown = sorted(set(overrides) - set(by_name))
+        if unknown:
+            raise ParamsError(
+                f"{Path(staged.entry).name} has no inputs named {', '.join(unknown)}. "
+                f"Its inputs are: {', '.join(by_name) or 'none'}."
+            )
+        values = {name: validate_value(by_name[name], v) for name, v in overrides.items()}
+        title = f"input parameters for {Path(staged.entry).stem}"
+        return build_set(discovery.params, values, title=title), values, notes
+    if shipped is not None:
+        set_file = read_set(shipped)
+        for name, value in overrides.items():
+            set_file.set_value(name, value)
+        return set_file, dict(overrides), notes
+    return None, dict(overrides), notes
 
 
 @dataclass
@@ -71,6 +112,9 @@ def run_mql5_backtest(
     if not compiled.ok:
         raise CompileFailedError(compiled)
 
+    parameter_file, values, parameter_notes = prepare_parameters(
+        compiled.strategy, dict(parameters or {})
+    )
     spec = BacktestSpec(
         expert=compiled.strategy.expert_path(install),
         symbol=symbol,
@@ -81,12 +125,12 @@ def run_mql5_backtest(
         deposit=deposit,
         currency=currency,
         leverage=leverage,
-        parameters=dict(parameters or {}),
+        parameters=values,
     )
     spec.validate()
     run_id = new_run_id()
     run_dir = settings.workspace_dir / "runs" / run_id
-    notes: list[str] = []
+    notes: list[str] = list(parameter_notes)
 
     clock: ServerClock | None = None
     try:
@@ -98,7 +142,9 @@ def run_mql5_backtest(
     except (ClockError, MT5DataError) as exc:
         notes.append(f"Deal times are server time only: {exc}")
 
-    tester = run_tester(spec, install, run_dir, run_id=run_id, timeout_s=timeout_s)
+    tester = run_tester(
+        spec, install, run_dir, run_id=run_id, timeout_s=timeout_s, parameter_file=parameter_file
+    )
     run = BacktestRun(compile=compiled, tester=tester, notes=notes)
     if tester.parsed is None:
         return run
@@ -121,6 +167,7 @@ def run_mql5_backtest(
         },
     )
     result.meta.notes.extend(notes)
+    result.metrics = compute_metrics(result.deals)
     run.result = result
     run.result_path = run_dir / "result.json"
     run.result_path.write_text(result.model_dump_json(indent=1), encoding="utf-8")

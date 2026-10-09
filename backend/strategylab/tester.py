@@ -27,6 +27,7 @@ from strategylab.config import (
     decode_mt_text,
     ensure_terminal_idle,
 )
+from strategylab.params import SetFile
 from strategylab.report import ParsedReport, ReportError, parse_report
 from strategylab.result import TickModel
 from strategylab.winproc import StopOutcome, stop_process
@@ -300,6 +301,7 @@ def run_tester(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     launcher: Launcher = launch_terminal,
     stopper: Stopper = stop_process,
+    parameter_file: SetFile | None = None,
 ) -> TesterRun:
     spec.validate()
     run_id = run_id or new_run_id()
@@ -321,7 +323,11 @@ def run_tester(
     parameters_path = install.mql5_dir / "Profiles" / "Tester" / parameters_name
     # Always pass a parameter file, even an empty one: without it the tester falls back to
     # whatever was last used for an EA of the same name.
-    write_utf16(parameters_path, parameters_text(spec.parameters))
+    if parameter_file is not None:
+        parameters_path.parent.mkdir(parents=True, exist_ok=True)
+        parameters_path.write_bytes(parameter_file.to_bytes())
+    else:
+        write_utf16(parameters_path, parameters_text(spec.parameters))
     config_path = run_dir / "tester.ini"
     write_utf16(config_path, build_config(spec, report_rel, parameters_name))
     run.config_path = config_path
@@ -347,7 +353,8 @@ def run_tester(
         logs_dir.mkdir(exist_ok=True)
         for kind, text in journals.items():
             path = logs_dir / f"{kind}.log"
-            path.write_text(text, encoding="utf-8")
+            # Journals already end lines with CRLF; writing bytes keeps them from doubling.
+            path.write_bytes(text.encode("utf-8"))
             run.log_paths[kind] = path
         parameters_path.unlink(missing_ok=True)
 

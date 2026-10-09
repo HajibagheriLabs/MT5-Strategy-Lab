@@ -65,3 +65,21 @@ def test_unknown_symbol_produces_no_report(settings):
     )
     assert run.tester.outcome is Outcome.NO_REPORT
     assert "NO_SUCH_SYMBOL" in run.tester.message
+
+
+def test_overridden_input_reaches_the_tester(settings, fx_symbol):
+    run = run_mql5_backtest(
+        moving_average(settings),
+        settings,
+        symbol=fx_symbol,
+        timeframe="H1",
+        date_from=date(2025, 3, 3),
+        date_to=date(2025, 3, 15),
+        parameters={"MovingPeriod": "24"},
+        timeout_s=300,
+    )
+    assert run.tester.outcome in (Outcome.SUCCESS, Outcome.ZERO_TRADES)
+    inputs = run.result.meta.parameters
+    assert inputs["MovingPeriod"] == "24"
+    assert inputs["MovingShift"] == "6"
+    assert run.result.metrics["trades"] == run.result.trade_count

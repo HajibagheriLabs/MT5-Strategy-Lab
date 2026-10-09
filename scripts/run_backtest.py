@@ -45,21 +45,21 @@ EXIT_CODES = {
     Outcome.TIMEOUT: 4,
     Outcome.TERMINAL_RUNNING: 5,
 }
+# Report rows to print, with the StrategyLab metric that corresponds to each.
 SUMMARY_ROWS = (
-    "Total Net Profit",
-    "Gross Profit",
-    "Gross Loss",
-    "Profit Factor",
-    "Expected Payoff",
-    "Total Trades",
-    "Total Deals",
-    "Balance Drawdown Maximal",
-    "Balance Drawdown Relative",
-    "Equity Drawdown Maximal",
-    "Equity Drawdown Relative",
-    "Sharpe Ratio",
-    "Recovery Factor",
-    "History Quality",
+    ("Total Net Profit", "net_profit"),
+    ("Gross Profit", "gross_profit"),
+    ("Gross Loss", "gross_loss"),
+    ("Profit Factor", "profit_factor"),
+    ("Expected Payoff", "expected_payoff"),
+    ("Total Trades", "trades"),
+    ("Profit Trades (% of total)", "win_rate_pct"),
+    ("Balance Drawdown Maximal", "balance_dd_maximal"),
+    ("Balance Drawdown Relative", "balance_dd_relative_pct"),
+    ("Equity Drawdown Maximal", None),
+    ("Recovery Factor", "recovery_factor"),
+    ("Sharpe Ratio", "sharpe_ratio"),
+    ("History Quality", None),
 )
 
 
@@ -68,6 +68,14 @@ def parse_parameter(text: str) -> tuple[str, str]:
     if not sep or not name.strip():
         raise argparse.ArgumentTypeError(f"expected Name=Value, got '{text}'")
     return name.strip(), value.strip()
+
+
+def format_metric(value: float | int | None) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, int):
+        return str(value)
+    return f"{value:,.2f}".replace(",", " ")
 
 
 def print_summary(run: BacktestRun, settings: Settings, args: argparse.Namespace) -> None:
@@ -86,18 +94,12 @@ def print_summary(run: BacktestRun, settings: Settings, args: argparse.Namespace
     result = run.result
     if result is not None:
         reported = result.reported
-        net_from_deals = sum(
-            d.profit + d.commission + d.swap for d in result.deals if d.type != "balance"
-        )
         print()
-        print(f"{'':28}{'MetaTrader':>18}{'from deals':>14}")
-        for label in SUMMARY_ROWS:
-            ours = ""
-            if label == "Total Net Profit":
-                ours = f"{net_from_deals:,.2f}".replace(",", " ")
-            elif label == "Total Trades":
-                ours = str(result.trade_count)
+        print(f"{'':28}{'MetaTrader':>18}{'StrategyLab':>14}")
+        for label, metric in SUMMARY_ROWS:
+            ours = format_metric(result.metrics.get(metric)) if metric else ""
             print(f"{label:28}{reported.get(label, '-'):>18}{ours:>14}")
+        print("StrategyLab figures come from the deals alone; see reports/metric_crosscheck.md.")
         meta = result.meta
         print()
         print(

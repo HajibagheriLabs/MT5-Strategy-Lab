@@ -9,6 +9,7 @@ MODULES = [
     "strategylab.config",
     "strategylab.jobs",
     "strategylab.metrics",
+    "strategylab.mql5_constants",
     "strategylab.mt5_data",
     "strategylab.params",
     "strategylab.report",
