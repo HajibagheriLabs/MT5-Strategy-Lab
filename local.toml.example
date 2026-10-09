@@ -1,0 +1,37 @@
+# Copy this file to local.toml and edit it. local.toml is gitignored: it describes your machine,
+# so it never belongs in the repository.
+#
+# Without a local.toml the app tries to discover a terminal on its own (see README). With one,
+# it uses exactly what is written here and reports an error instead of guessing.
+#
+# Use single-quoted strings for Windows paths so backslashes are taken literally.
+
+[terminal]
+# The folder that contains terminal64.exe and MetaEditor64.exe. Pointing at terminal64.exe
+# itself also works.
+#
+# Use a copy of MetaTrader 5 dedicated to backtesting, not the one you trade from: a data
+# folder can only be used by one running terminal at a time, and the app launches and closes
+# this terminal on its own.
+path = 'C:\MT5-Lab'
+
+# true:  the terminal is always started with /portable, so its data folder (MQL5\, config\,
+#        logs\, Tester\, bases\) is the install folder itself. Recommended.
+# false: a normal install; the data folder is under %APPDATA%\MetaQuotes\Terminal\<id>\ and is
+#        found by matching the origin.txt file that MetaTrader writes in each data folder.
+portable = true
+
+# Only needed if the data folder cannot be found automatically. Ignored when portable = true.
+# data_dir = 'C:\Users\you\AppData\Roaming\MetaQuotes\Terminal\0123456789ABCDEF0123456789ABCDEF'
+
+[account]
+# The trade server shown in the terminal's login dialog, for example "Broker-Demo". Used to keep
+# history caches from different servers apart. Use a demo account; this project never needs a
+# live one. Account credentials do not belong in this file: log the terminal in by hand once
+# and let it remember the account.
+server = 'Broker-Demo'
+
+[workspace]
+# Where runs, logs and caches are written. Relative paths are resolved against the repository
+# root. Defaults to 'workspace'.
+# dir = 'workspace'
