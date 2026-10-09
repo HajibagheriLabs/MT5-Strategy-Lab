@@ -1,0 +1,884 @@
+[
+ {
+  "run": "EURUSD@|H1",
+  "comparison": "simulator (1-minute bars) vs tester, 1 minute OHLC",
+  "reference_trades": 43,
+  "candidate_trades": 43,
+  "matched": 43,
+  "identical": 43,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 43,
+  "same_exit_kind": 43,
+  "exit_within_minute": 43,
+  "entry_seconds": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_buys": {
+   "count": 21,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_sells": {
+   "count": 22,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_points": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_reference": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_candidate": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "net_profit": [
+   -25.24,
+   -25.24
+  ],
+  "max_drawdown": [
+   184.36000000000058,
+   184.36000000000058
+  ],
+  "swap": [
+   -5.24,
+   -5.24
+  ],
+  "net_difference": {
+   "entry_price": 0.0,
+   "exit_price": 0.0,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 0.0,
+   "unpaired": 0.0,
+   "other": 0.0
+  }
+ },
+ {
+  "run": "EURUSD@|H1",
+  "comparison": "simulator (1-minute bars) vs tester, real ticks",
+  "reference_trades": 43,
+  "candidate_trades": 43,
+  "matched": 43,
+  "identical": 1,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 1,
+  "same_exit_kind": 43,
+  "exit_within_minute": 39,
+  "entry_seconds": {
+   "count": 43,
+   "zero_share": 0.9069767441860465,
+   "mean": -0.09302325581395349,
+   "median": 0.0,
+   "p95_abs": 1.0,
+   "max_abs": 1.0
+  },
+  "entry_points": {
+   "count": 43,
+   "zero_share": 0.6976744186046512,
+   "mean": -1.2790697674430105,
+   "median": 0.0,
+   "p95_abs": 4.000000000004,
+   "max_abs": 19.00000000001345
+  },
+  "entry_points_buys": {
+   "count": 21,
+   "zero_share": 0.38095238095238093,
+   "mean": -2.619047619049974,
+   "median": -1.9999999999908977,
+   "p95_abs": 4.000000000004,
+   "max_abs": 19.00000000001345
+  },
+  "entry_points_sells": {
+   "count": 22,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_points": {
+   "count": 43,
+   "zero_share": 0.32558139534883723,
+   "mean": -2.581395348838629,
+   "median": -1.0000000000065512,
+   "p95_abs": 12.999999999996346,
+   "max_abs": 25.999999999992692
+  },
+  "exit_slippage_reference": {
+   "count": 43,
+   "zero_share": 0.5116279069767442,
+   "mean": 1.4418604651153972,
+   "median": 0.0,
+   "p95_abs": 9.999999999998899,
+   "max_abs": 25.999999999992692
+  },
+  "exit_slippage_candidate": {
+   "count": 43,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 43,
+   "zero_share": 0.9302325581395349,
+   "mean": 0.1441860465116279,
+   "median": 0.0,
+   "p95_abs": 1.0,
+   "max_abs": 2.6000000000000014
+  },
+  "net_profit": [
+   -31.44,
+   -25.24
+  ],
+  "max_drawdown": [
+   190.46000000000095,
+   184.36000000000058
+  ],
+  "swap": [
+   -5.24,
+   -5.24
+  ],
+  "net_difference": {
+   "entry_price": 5.5,
+   "exit_price": 0.7,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 0.0,
+   "unpaired": 0.0,
+   "other": 0.0
+  }
+ },
+ {
+  "run": "EURUSD@|H1|ticks_window",
+  "comparison": "simulator (real ticks) vs tester, real ticks",
+  "reference_trades": 14,
+  "candidate_trades": 14,
+  "matched": 14,
+  "identical": 6,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 8,
+  "same_exit_kind": 13,
+  "exit_within_minute": 12,
+  "entry_seconds": {
+   "count": 14,
+   "zero_share": 0.7857142857142857,
+   "mean": 0.21428571428571427,
+   "median": 0.0,
+   "p95_abs": 1.0,
+   "max_abs": 1.0
+  },
+  "entry_points": {
+   "count": 14,
+   "zero_share": 0.42857142857142855,
+   "mean": -2.499999999998931,
+   "median": 0.0,
+   "p95_abs": 7.000000000001449,
+   "max_abs": 26.999999999999243
+  },
+  "entry_points_buys": {
+   "count": 8,
+   "zero_share": 0.625,
+   "mean": -3.7499999999995866,
+   "median": 0.0,
+   "p95_abs": 26.999999999999243,
+   "max_abs": 26.999999999999243
+  },
+  "entry_points_sells": {
+   "count": 6,
+   "zero_share": 0.16666666666666666,
+   "mean": -0.833333333331391,
+   "median": 0.0,
+   "p95_abs": 7.000000000001449,
+   "max_abs": 7.000000000001449
+  },
+  "exit_points": {
+   "count": 14,
+   "zero_share": 0.5,
+   "mean": 40.500000000000455,
+   "median": 0.0,
+   "p95_abs": 28.000000000005794,
+   "max_abs": 595.9999999999965
+  },
+  "exit_slippage_reference": {
+   "count": 13,
+   "zero_share": 0.6153846153846154,
+   "mean": 0.15384615384374561,
+   "median": 0.0,
+   "p95_abs": 1.0000000000065512,
+   "max_abs": 1.9999999999908977
+  },
+  "exit_slippage_candidate": {
+   "count": 13,
+   "zero_share": 0.5384615384615384,
+   "mean": 0.3076923076891993,
+   "median": 0.0,
+   "p95_abs": 1.9999999999908977,
+   "max_abs": 2.0000000000131024
+  },
+  "result_difference": {
+   "count": 14,
+   "zero_share": 0.9285714285714286,
+   "mean": -4.3342857142857145,
+   "median": 0.0,
+   "p95_abs": 0.10000000000000142,
+   "max_abs": 60.78
+  },
+  "net_profit": [
+   103.62,
+   42.94
+  ],
+  "max_drawdown": [
+   60.29999999999927,
+   60.5
+  ],
+  "swap": [
+   -0.28,
+   -0.76
+  ],
+  "net_difference": {
+   "entry_price": 3.2,
+   "exit_price": -3.1,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": -60.78,
+   "unpaired": 0.0,
+   "other": -0.0
+  }
+ },
+ {
+  "run": "EURUSD@|M15",
+  "comparison": "simulator (1-minute bars) vs tester, 1 minute OHLC",
+  "reference_trades": 111,
+  "candidate_trades": 111,
+  "matched": 111,
+  "identical": 111,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 111,
+  "same_exit_kind": 111,
+  "exit_within_minute": 111,
+  "entry_seconds": {
+   "count": 111,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points": {
+   "count": 111,
+   "zero_share": 1.0,
+   "mean": -2.000401846171453e-13,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 2.2204460492503128e-11
+  },
+  "entry_points_buys": {
+   "count": 61,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_sells": {
+   "count": 50,
+   "zero_share": 1.0,
+   "mean": -4.4408920985006257e-13,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 2.2204460492503128e-11
+  },
+  "exit_points": {
+   "count": 111,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_reference": {
+   "count": 110,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_candidate": {
+   "count": 110,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 111,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "net_profit": [
+   -53.3,
+   -53.3
+  ],
+  "max_drawdown": [
+   288.5599999999995,
+   288.5599999999995
+  ],
+  "swap": [
+   -15.6,
+   -15.6
+  ],
+  "net_difference": {
+   "entry_price": -0.0,
+   "exit_price": 0.0,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 0.0,
+   "unpaired": 0.0,
+   "other": 0.0
+  }
+ },
+ {
+  "run": "EURUSD@|M15",
+  "comparison": "simulator (1-minute bars) vs tester, real ticks",
+  "reference_trades": 113,
+  "candidate_trades": 111,
+  "matched": 108,
+  "identical": 0,
+  "only_reference": 5,
+  "only_candidate": 3,
+  "same_exit": 1,
+  "same_exit_kind": 107,
+  "exit_within_minute": 95,
+  "entry_seconds": {
+   "count": 108,
+   "zero_share": 0.7870370370370371,
+   "mean": -0.5648148148148148,
+   "median": 0.0,
+   "p95_abs": 4.0,
+   "max_abs": 25.0
+  },
+  "entry_points": {
+   "count": 108,
+   "zero_share": 0.5833333333333334,
+   "mean": -1.583333333334043,
+   "median": 0.0,
+   "p95_abs": 4.000000000004,
+   "max_abs": 21.00000000000435
+  },
+  "entry_points_buys": {
+   "count": 59,
+   "zero_share": 0.23728813559322035,
+   "mean": -2.8983050847466854,
+   "median": -3.9999999999817955,
+   "p95_abs": 5.999999999994897,
+   "max_abs": 21.00000000000435
+  },
+  "entry_points_sells": {
+   "count": 49,
+   "zero_share": 1.0,
+   "mean": -4.5315225494904344e-13,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 2.2204460492503128e-11
+  },
+  "exit_points": {
+   "count": 108,
+   "zero_share": 0.2777777777777778,
+   "mean": -1.8240740740747166,
+   "median": -1.0000000000065512,
+   "p95_abs": 30.99999999998104,
+   "max_abs": 896.0000000000078
+  },
+  "exit_slippage_reference": {
+   "count": 107,
+   "zero_share": 0.514018691588785,
+   "mean": -4.551401869159435,
+   "median": 0.0,
+   "p95_abs": 28.99999999999014,
+   "max_abs": 896.0000000000078
+  },
+  "exit_slippage_candidate": {
+   "count": 107,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 108,
+   "zero_share": 0.8518518518518519,
+   "mean": 0.11111111111111091,
+   "median": 0.0,
+   "p95_abs": 3.5,
+   "max_abs": 89.6
+  },
+  "net_profit": [
+   -167.06,
+   -53.3
+  ],
+  "max_drawdown": [
+   306.02000000000044,
+   288.5599999999995
+  ],
+  "swap": [
+   -16.36,
+   -15.6
+  ],
+  "net_difference": {
+   "entry_price": 17.1,
+   "exit_price": -65.2,
+   "swap": 0.16,
+   "commission": 0.0,
+   "other_exit": 59.94,
+   "unpaired": 101.76,
+   "other": 0.0
+  }
+ },
+ {
+  "run": "USDJPY@|H1",
+  "comparison": "simulator (1-minute bars) vs tester, 1 minute OHLC",
+  "reference_trades": 56,
+  "candidate_trades": 56,
+  "matched": 56,
+  "identical": 56,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 56,
+  "same_exit_kind": 56,
+  "exit_within_minute": 56,
+  "entry_seconds": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_buys": {
+   "count": 31,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_sells": {
+   "count": 25,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_points": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_reference": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_candidate": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "net_profit": [
+   -229.85,
+   -229.85
+  ],
+  "max_drawdown": [
+   229.85000000000036,
+   229.85000000000036
+  ],
+  "swap": [
+   -6.87,
+   -6.87
+  ],
+  "net_difference": {
+   "entry_price": 0.0,
+   "exit_price": 0.0,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 0.0,
+   "unpaired": 0.0,
+   "other": 0.0
+  }
+ },
+ {
+  "run": "USDJPY@|H1",
+  "comparison": "simulator (1-minute bars) vs tester, real ticks",
+  "reference_trades": 56,
+  "candidate_trades": 56,
+  "matched": 56,
+  "identical": 0,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 0,
+  "same_exit_kind": 55,
+  "exit_within_minute": 55,
+  "entry_seconds": {
+   "count": 56,
+   "zero_share": 0.9642857142857143,
+   "mean": -0.03571428571428571,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 1.0
+  },
+  "entry_points": {
+   "count": 56,
+   "zero_share": 0.75,
+   "mean": -0.4107142857142167,
+   "median": 0.0,
+   "p95_abs": 2.0000000000095497,
+   "max_abs": 3.9999999999906777
+  },
+  "entry_points_buys": {
+   "count": 31,
+   "zero_share": 0.5483870967741935,
+   "mean": -0.7419354838708431,
+   "median": 0.0,
+   "p95_abs": 3.0000000000143245,
+   "max_abs": 3.9999999999906777
+  },
+  "entry_points_sells": {
+   "count": 25,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_points": {
+   "count": 56,
+   "zero_share": 0.25,
+   "mean": -12.017857142858698,
+   "median": -1.0000000000047748,
+   "p95_abs": 8.000000000009777,
+   "max_abs": 604.9999999999898
+  },
+  "exit_slippage_reference": {
+   "count": 56,
+   "zero_share": 0.375,
+   "mean": 1.1428571428565095,
+   "median": 0.0,
+   "p95_abs": 7.999999999981355,
+   "max_abs": 13.00000000000523
+  },
+  "exit_slippage_candidate": {
+   "count": 56,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 56,
+   "zero_share": 0.9107142857142857,
+   "mean": 0.7685714285714286,
+   "median": 0.0,
+   "p95_abs": 0.5299999999999994,
+   "max_abs": 39.2
+  },
+  "net_profit": [
+   -272.89,
+   -229.85
+  ],
+  "max_drawdown": [
+   272.8899999999994,
+   229.85000000000036
+  ],
+  "swap": [
+   -6.87,
+   -6.87
+  ],
+  "net_difference": {
+   "entry_price": 1.49,
+   "exit_price": 2.36,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 39.2,
+   "unpaired": 0.0,
+   "other": -0.01
+  }
+ },
+ {
+  "run": "USDJPY@|M15",
+  "comparison": "simulator (1-minute bars) vs tester, 1 minute OHLC",
+  "reference_trades": 184,
+  "candidate_trades": 184,
+  "matched": 184,
+  "identical": 184,
+  "only_reference": 0,
+  "only_candidate": 0,
+  "same_exit": 184,
+  "same_exit_kind": 184,
+  "exit_within_minute": 184,
+  "entry_seconds": {
+   "count": 184,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points": {
+   "count": 184,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_buys": {
+   "count": 90,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "entry_points_sells": {
+   "count": 94,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_points": {
+   "count": 184,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_reference": {
+   "count": 184,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_slippage_candidate": {
+   "count": 184,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 184,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "net_profit": [
+   20.29,
+   20.29
+  ],
+  "max_drawdown": [
+   444.5100000000002,
+   444.5100000000002
+  ],
+  "swap": [
+   -13.92,
+   -13.92
+  ],
+  "net_difference": {
+   "entry_price": 0.0,
+   "exit_price": 0.0,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 0.0,
+   "unpaired": 0.0,
+   "other": 0.0
+  }
+ },
+ {
+  "run": "USDJPY@|M15",
+  "comparison": "simulator (1-minute bars) vs tester, real ticks",
+  "reference_trades": 183,
+  "candidate_trades": 184,
+  "matched": 183,
+  "identical": 0,
+  "only_reference": 0,
+  "only_candidate": 1,
+  "same_exit": 3,
+  "same_exit_kind": 183,
+  "exit_within_minute": 177,
+  "entry_seconds": {
+   "count": 183,
+   "zero_share": 0.8961748633879781,
+   "mean": -0.22404371584699453,
+   "median": 0.0,
+   "p95_abs": 1.0,
+   "max_abs": 7.0
+  },
+  "entry_points": {
+   "count": 183,
+   "zero_share": 0.7377049180327869,
+   "mean": -0.8415300546441676,
+   "median": 0.0,
+   "p95_abs": 3.9999999999906777,
+   "max_abs": 22.999999999996135
+  },
+  "entry_points_buys": {
+   "count": 90,
+   "zero_share": 0.4666666666666667,
+   "mean": -1.7111111111098074,
+   "median": -0.9999999999763531,
+   "p95_abs": 7.999999999981355,
+   "max_abs": 22.999999999996135
+  },
+  "entry_points_sells": {
+   "count": 93,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "exit_points": {
+   "count": 183,
+   "zero_share": 0.2459016393442623,
+   "mean": -1.0655737704934745,
+   "median": 0.0,
+   "p95_abs": 18.000000000000682,
+   "max_abs": 239.00000000000432
+  },
+  "exit_slippage_reference": {
+   "count": 183,
+   "zero_share": 0.32786885245901637,
+   "mean": 3.1530054644799326,
+   "median": 0.0,
+   "p95_abs": 13.00000000000523,
+   "max_abs": 239.00000000000432
+  },
+  "exit_slippage_candidate": {
+   "count": 183,
+   "zero_share": 1.0,
+   "mean": 0.0,
+   "median": 0.0,
+   "p95_abs": 0.0,
+   "max_abs": 0.0
+  },
+  "result_difference": {
+   "count": 183,
+   "zero_share": 0.8633879781420765,
+   "mean": 0.20513661202185798,
+   "median": 0.0,
+   "p95_abs": 0.8699999999999992,
+   "max_abs": 15.500000000000002
+  },
+  "net_profit": [
+   -4.56,
+   20.29
+  ],
+  "max_drawdown": [
+   462.46000000000095,
+   444.5100000000002
+  ],
+  "swap": [
+   -13.92,
+   -13.92
+  ],
+  "net_difference": {
+   "entry_price": 10.07,
+   "exit_price": 27.54,
+   "swap": 0.0,
+   "commission": 0.0,
+   "other_exit": 0.0,
+   "unpaired": -12.69,
+   "other": -0.07
+  }
+ }
+]
