@@ -311,6 +311,15 @@ def test_health_says_when_someone_else_has_the_terminal_open(client, running_ter
     assert "already running" in health["message"]
 
 
+def test_health_does_not_blame_a_terminal_strategylab_opened_itself(client, running_terminals):
+    lab = client.app.state.lab
+    running_terminals.append(type("Running", (), {"pid": 4321})())
+    with lab.queue.terminal_lock:
+        health = client.get("/api/health").json()
+    assert health["status"] == "ok"
+    assert health["terminal"]["reading_history"] is True
+
+
 # --- uploads -----------------------------------------------------------------------------------
 
 
@@ -685,5 +694,9 @@ def test_a_done_run_serves_its_price_bars_in_windows(settings, running_terminals
         assert [b["time"] for b in around.json()["bars"]] == [
             epoch(2025, 1, 10, h) for h in (10, 11, 12, 13)
         ]
-        definitions = client.get("/api/metrics").json()
-        assert "net_profit" in definitions and "sharpe_ratio" in definitions
+        fidelity = client.get("/api/fidelity").json()
+        assert fidelity["python_sim"]["ohlc_m1"].startswith("Simulated by StrategyLab")
+        assert set(fidelity["mt5_tester"]) == {"real_ticks", "every_tick", "ohlc_m1", "open_prices"}
+        info = client.get("/api/metrics").json()
+        assert "net_profit" in info["definitions"] and "sharpe_ratio" in info["definitions"]
+        assert info["metatrader"]["balance_dd_maximal_pct"] == ["Balance Drawdown Maximal", 1]

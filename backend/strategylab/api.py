@@ -169,6 +169,8 @@ class TerminalStatus(BaseModel):
     running_pids: list[int] = Field(default_factory=list)
     busy_with_run: str | None = None
     """The run StrategyLab is driving the terminal for, if any."""
+    reading_history: bool = False
+    """StrategyLab has the terminal open to read history (the symbol list, a chart)."""
 
 
 class QueueStatus(BaseModel):
@@ -298,6 +300,13 @@ class BarsOut(BaseModel):
     bars: list[Bar]
     first_index: int
     total: int
+
+
+class MetricsInfo(BaseModel):
+    definitions: dict[str, str]
+    metatrader: dict[str, tuple[str, int]]
+    """For a tester run: the report figure each metric matches, and which part of it (a figure
+    such as "684.68 (5.87%)" holds two)."""
 
 
 class ResultSummary(BaseModel):
@@ -482,6 +491,7 @@ def create_app(services: Services | None = None) -> FastAPI:
         install = settings.terminal
         pids = [r.pid for r in terminals_using(install)]
         busy = lab.queue.current
+        reading = busy is None and lab.queue.terminal_lock.locked()
         terminal = TerminalStatus(
             found=True,
             install_dir=str(install.install_dir),
@@ -492,8 +502,9 @@ def create_app(services: Services | None = None) -> FastAPI:
             notes=list(settings.notes),
             running_pids=pids,
             busy_with_run=busy,
+            reading_history=reading,
         )
-        if pids and busy is None:
+        if pids and busy is None and not reading:
             return Health(
                 status="attention",
                 message=(
@@ -903,11 +914,28 @@ def create_app(services: Services | None = None) -> FastAPI:
             total=len(frame),
         )
 
-    @router.get("/metrics")
-    def metric_definitions() -> dict[str, str]:
-        from strategylab.metrics import DEFINITIONS
+    @router.get("/fidelity")
+    def fidelity() -> dict[str, dict[str, str]]:
+        """The note each engine attaches to its results, so the UI can show it before a run."""
+        from strategylab.sim.runner import FIDELITY as PYTHON
+        from strategylab.tester import FIDELITY as TESTER
 
-        return dict(DEFINITIONS)
+        return {
+            Engine.MT5_TESTER: {str(model): text for model, text in TESTER.items()},
+            Engine.PYTHON_SIM: {
+                TickModel.OHLC_M1: PYTHON["m1_ohlc"],
+                TickModel.REAL_TICKS: PYTHON["ticks"],
+            },
+        }
+
+    @router.get("/metrics")
+    def metric_definitions() -> MetricsInfo:
+        from strategylab.metrics import DEFINITIONS, METATRADER_EQUIVALENTS
+
+        return MetricsInfo(
+            definitions=dict(DEFINITIONS),
+            metatrader={k: (label, part) for k, (label, part) in METATRADER_EQUIVALENTS.items()},
+        )
 
     @router.get("/runs/{run_id}/logs")
     def logs(run_id: str) -> list[LogSource]:
