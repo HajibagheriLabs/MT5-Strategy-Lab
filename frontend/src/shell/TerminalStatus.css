@@ -1,0 +1,107 @@
+.terminal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--control-md);
+  padding: 0 var(--space-4);
+  border: var(--hairline) solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-1) var(--ease);
+}
+
+.terminal-status:hover {
+  background: var(--hover);
+}
+
+.terminal-status--active {
+  color: var(--accent-text);
+}
+
+.terminal-status--warning {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.terminal-status--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.terminal-status--loading {
+  cursor: default;
+}
+
+.terminal-status__server {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-regular);
+}
+
+.terminal-status__spin {
+  animation: spin 1.2s linear infinite;
+}
+
+.terminal-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.terminal-details__lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: var(--weight-medium);
+}
+
+.terminal-details__lead--active {
+  color: var(--accent-text);
+}
+
+.terminal-details__lead--warning {
+  color: var(--warning);
+}
+
+.terminal-details__lead--danger {
+  color: var(--danger);
+}
+
+.terminal-details__list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-3) var(--space-6);
+  padding-top: var(--space-5);
+  border-top: var(--hairline) solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.terminal-details__list dt {
+  color: var(--fg-2);
+}
+
+.terminal-details__list dd {
+  overflow-wrap: anywhere;
+}
+
+.terminal-details__notes {
+  margin: 0;
+  padding-left: var(--space-7);
+  color: var(--fg-2);
+}
+
+@media (max-width: 767px) {
+  .terminal-status__server {
+    display: none;
+  }
+}
+
+@media (max-width: 479px) {
+  .terminal-status__label {
+    display: none;
+  }
+}
