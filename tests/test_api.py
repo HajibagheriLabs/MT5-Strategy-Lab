@@ -700,3 +700,30 @@ def test_a_done_run_serves_its_price_bars_in_windows(settings, running_terminals
         info = client.get("/api/metrics").json()
         assert "net_profit" in info["definitions"] and "sharpe_ratio" in info["definitions"]
         assert info["metatrader"]["balance_dd_maximal_pct"] == ["Balance Drawdown Maximal", 1]
+
+
+def test_the_built_frontend_is_served_beside_the_api(settings, running_terminals, tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>StrategyLab</title>")
+    (dist / "assets" / "index-abc123.js").write_text("export {}")
+    (tmp_path / "secret.txt").write_text("outside")
+    with TestClient(make_app(settings, frontend_dir=dist), base_url=BASE_URL) as client:
+        page = client.get("/runs/run-1")
+        assert page.status_code == 200
+        assert "StrategyLab" in page.text
+        assert page.headers["cache-control"] == "no-cache"
+        script = client.get("/assets/index-abc123.js")
+        assert script.headers["content-type"].startswith("text/javascript")
+        assert "immutable" in script.headers["cache-control"]
+        assert "outside" not in client.get("/../secret.txt").text
+        assert "outside" not in client.get("/%2e%2e/secret.txt").text
+        assert client.get("/api/nope").status_code == 404
+        assert client.get("/api/health").json()["status"] == "ok"
+
+
+def test_without_a_build_the_root_says_how_to_start(settings, running_terminals, tmp_path):
+    with TestClient(make_app(settings, frontend_dir=tmp_path / "none"), base_url=BASE_URL) as c:
+        response = c.get("/")
+        assert response.status_code == 404
+        assert "tasks.py start" in response.json()["detail"]

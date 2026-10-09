@@ -1,6 +1,8 @@
 """Project task runner. Standard library only, so it works before anything is installed.
 
 python tasks.py setup     create .venv (Python 3.11+) and install backend and frontend deps
+python tasks.py start     build the frontend if it changed, serve the app and open it
+                          (--no-browser to only serve)
 python tasks.py lint      ruff, eslint and the TypeScript compiler
 python tasks.py fmt       apply ruff fixes and formatting
 python tasks.py test      pytest (extra arguments are passed through)
@@ -17,8 +19,11 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
-from collections.abc import Callable, Sequence
+import urllib.request
+import webbrowser
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -145,6 +150,54 @@ def e2e(args: list[str]) -> int:
 def build(args: list[str]) -> int:
     frontend_ready()
     return run([npm(), "run", "build"], cwd=FRONTEND)
+
+
+def frontend_sources() -> Iterator[Path]:
+    yield from (FRONTEND / "src").rglob("*")
+    yield from (FRONTEND / "public").rglob("*")
+    for name in ("index.html", "package-lock.json", "vite.config.ts", "tsconfig.app.json"):
+        yield FRONTEND / name
+
+
+def build_is_current() -> bool:
+    built = FRONTEND / "dist" / "index.html"
+    if not built.exists():
+        return False
+    newest = max(
+        (path.stat().st_mtime for path in frontend_sources() if path.is_file()), default=0.0
+    )
+    return built.stat().st_mtime >= newest
+
+
+def open_when_ready(url: str, timeout_s: float = 60.0) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"{url}api/health", timeout=2):
+                webbrowser.open(url)
+                return
+        except OSError:
+            time.sleep(0.5)
+
+
+@task
+def start(args: list[str]) -> int:
+    python = venv_python()
+    frontend_ready()
+    if build_is_current():
+        print("The frontend build is up to date.")
+    else:
+        code = build([])
+        if code:
+            return code
+    url = f"http://{BACKEND_HOST}:{BACKEND_PORT}/"
+    print(f"\nStrategyLab is at {url}  (Ctrl+C stops it)\n", flush=True)
+    if "--no-browser" not in args:
+        threading.Thread(target=open_when_ready, args=(url,), daemon=True).start()
+    try:
+        return run([python, "-m", "strategylab.api"])
+    except KeyboardInterrupt:
+        return 0
 
 
 @task

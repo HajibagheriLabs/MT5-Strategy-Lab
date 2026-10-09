@@ -7,6 +7,9 @@ rebinding). Strategy code never runs in this process: MQL5 runs in the terminal 
 subprocess, both through the job queue.
 
     python -m strategylab.api        serve on http://127.0.0.1:8000
+
+When the frontend has been built (frontend/dist), this server also serves it, so the whole app
+is one process on one address.
 """
 
 from __future__ import annotations
@@ -70,6 +73,20 @@ FINAL_EVENT_GRACE_S = 2.0
 FINISHED_STATES = {"done", "failed", "cancelled", "deleted"}
 PYTHON_TIMEFRAMES = ("M1", "M5", "M15", "M30", "H1", "H4", "D1")
 PYTHON_MODELS = (TickModel.OHLC_M1, TickModel.REAL_TICKS)
+FRONTEND_DIR = REPO_ROOT / "frontend" / "dist"
+# Windows takes guessed media types from the registry, where .js is sometimes text/plain, and a
+# browser refuses to run a module script served as that.
+FRONTEND_TYPES = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".json": "application/json",
+}
 
 Compiler = Callable[[Path, TerminalInstall, str], CompileResult]
 
@@ -98,6 +115,8 @@ class Services:
     workspace_dir: Path | None = None
     """Where to keep runs when the settings cannot be loaded."""
     start_worker: bool = True
+    frontend_dir: Path | None = FRONTEND_DIR
+    """The built frontend, served at every path outside /api when it exists."""
 
 
 class Lab:
@@ -1035,7 +1054,34 @@ def create_app(services: Services | None = None) -> FastAPI:
         )
 
     app.include_router(router)
+    _serve_frontend(app, lab.services.frontend_dir)
     return app
+
+
+def _serve_frontend(app: FastAPI, dist: Path | None) -> None:
+    @app.get("/{path:path}", include_in_schema=False)
+    def frontend(path: str) -> FileResponse:
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(404, "Not Found")
+        if dist is None or not (dist / "index.html").is_file():
+            raise HTTPException(
+                404, "The frontend has not been built. Start the app with `python tasks.py start`."
+            )
+        root = dist.resolve()
+        candidate = (root / path).resolve()
+        if path and candidate.is_relative_to(root) and candidate.is_file():
+            # Built assets carry a content hash in their name, so they never change in place.
+            hashed = candidate.parent == root / "assets"
+            cache = "public, max-age=31536000, immutable" if hashed else "no-cache"
+            return FileResponse(
+                candidate,
+                media_type=FRONTEND_TYPES.get(candidate.suffix.lower()),
+                headers={"Cache-Control": cache},
+            )
+        # Any other path is a page of the app: index.html loads, and its router shows the page.
+        return FileResponse(
+            root / "index.html", media_type="text/html", headers={"Cache-Control": "no-cache"}
+        )
 
 
 def main() -> None:
