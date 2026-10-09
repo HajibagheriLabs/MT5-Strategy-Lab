@@ -495,6 +495,10 @@ What "available" means was measured, not assumed:
   for: the symbol list reads the yearly M1 files on disk
   (`bases\<server>\history\<symbol>\<year>.hcc`) and measures only the first M1 bar of the oldest
   of them and the latest bar.
+- Through the package the first bar is later than the tester's: a data connection returns at most
+  its 10 000 000 bars per chart, which on EURUSD reach back to 2000-07-05, while the tester
+  reports history from 2000-01-01. The measured first bar is the one both engines can use, so the
+  symbol list gives that.
 - Asking for the first tick of a month (`copy_ticks_from(start, 1)`) did not return within eight
   minutes: the terminal synchronises every tick from that date on. Recorded ticks are listed by
   the month files on disk (`bases\<server>\ticks\<symbol>\YYYYMM.tkc`) instead.
