@@ -20,4 +20,14 @@ To be written.
 
 ## Limitations
 
-To be written.
+- **Python results are simulated, and approximate.** The parity study
+  ([reports/parity.md](reports/parity.md)) ran one strategy, written once in MQL5 and once in
+  Python, through both engines on EURUSD and USDJPY, H1 and M15, over three months. On
+  1-minute bars the simulator reproduced the tester's "1 minute OHLC" mode exactly: 394 of 394
+  trades identical to the cent. Both, however, were optimistic against the tester's real-tick
+  mode, by 1 to 12 points per trade. 1-minute bars carry only the narrowest spread of each
+  minute, and they fill stops and targets at their level even across a gap. On recorded ticks
+  the simulator fills as the tester does. The study covers one kind of strategy (market
+  entries with fixed stops, one position at a time), with no pending orders and no commission.
+- Windows only, since MetaTrader 5 is.
+- A backtest is not a prediction of live results.

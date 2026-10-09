@@ -39,17 +39,22 @@ from strategylab.sim.constants import CONSTANTS
 
 Granularity = Literal["m1_ohlc", "ticks"]
 DEFAULT_TIMEOUT_S = 1800.0
+# The conclusion of the parity study (reports/parity.md), shown with every Python run.
 FIDELITY = {
     "m1_ohlc": (
-        "Simulated by StrategyLab, not the Strategy Tester. Prices come from 1-minute bars, four "
-        "per minute in the order the tester's \"1 minute OHLC\" mode uses, with each minute's "
-        "recorded spread; no slippage; swap from the symbol's current settings; no commission "
-        "unless one is set. Treat the result as an approximation."
+        "Simulated by StrategyLab, not the Strategy Tester. Prices come from 1-minute bars, "
+        "generated as in the tester's 1 minute OHLC mode; in the parity study the simulator "
+        "reproduced that mode trade for trade. Like that mode it is "
+        "optimistic against real ticks: the ask uses the narrowest spread of each minute, and "
+        "stops and targets fill exactly at their level, even across a gap. In the study this "
+        "overstated results by 1 to 12 points per trade. No commission unless one is set."
     ),
     "ticks": (
         "Simulated by StrategyLab, not the Strategy Tester, on the broker's recorded ticks with "
-        "their own bid and ask; no slippage; swap from the symbol's current settings; no "
-        "commission unless one is set. Treat the result as an approximation."
+        "their own bid and ask. Stops and targets fill at the tick that crosses them, as the "
+        "tester does with real ticks. A script that polls acts on the price when it wakes, "
+        "which can be later than an EA reacting to the first tick of a bar. No commission "
+        "unless one is set."
     ),
 }
 DEAL_TYPES = {

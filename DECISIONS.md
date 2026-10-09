@@ -360,7 +360,7 @@ were checked against a real export and are reproduced exactly.
 | Behaviour | Source |
 |---|---|
 | Prices inside a minute: open, low, high, close on a rising bar and open, high, low, close on a falling one; a doji moves against the previous bar; fewer prices for bars with 1, 2 or 3 ticks | The "Real and Generated Ticks" help page, "1 Minute OHLC" |
-| Ask = bid + the minute's recorded spread | Same page |
+| Ask = bid + the minute's recorded spread, which is the narrowest spread of that minute (the smallest among its recorded ticks in 99.5% of 28 398 EURUSD minutes) | Same page; the spread checked against a tick export |
 | Only FOK fills are accepted on a market-execution symbol whose filling mode is FOK; IOC and Return get 10030 "Unsupported filling mode" | A tester run sending each fill type |
 | A stop loss closer than the stops level gets 10016 "Invalid stops" (5 points rejected, 50 accepted with a 10-point level) | Same run |
 | Swap in points, charged at each midnight after a weekday, triple on the symbol's three-day day (Wednesday here) | `symbol_info()` of the server and the MQL5 documentation |
@@ -383,7 +383,14 @@ included (a short's take profit crossed by a weekend gap was booked at the level
 the gap price would have given 130.46). In real-tick mode stops filled at the level or worse
 and take profits at the level or better: the price of the tick that crossed the level. So on
 1-minute bars a reached level fills at the level, and on recorded ticks at the crossing tick's
-price. Limit orders fill at their price; stop orders follow the same rule as stop losses. Stop-limit orders and close-by are not simulated and raise an error
+price. Replaying that rule over the recorded ticks reproduces all 14 of the tester's real-tick
+exits in the study's tick window to the second and the point.
+
+A level counts as reached when the price is within half a point of it, which compares both at
+the symbol's digits. Exact comparison is wrong here: the terminal hands out some prices a hair
+off their decimal value (an ask of 1.0866500000000001 for 1.08665), and the parity study
+caught a take profit at 1.08665 that the tester filled on that tick and the simulator, comparing
+exactly, filled a tick later. Limit orders fill at their price; stop orders follow the same rule as stop losses. Stop-limit orders and close-by are not simulated and raise an error
 naming them. Commission is a fixed amount per lot per deal, zero unless set; margin is checked
 when opening, and stop-out is not simulated. Hedging and netting accounts are both supported.
 Profit in a currency other than the deposit's is converted at the closing price when the
@@ -407,6 +414,12 @@ Server time is presented as UTC, which is how the `MetaTrader5` package presents
 times, so `time.time()` and a bar's `time` field can be compared directly. The patched datetime
 classes still pass `isinstance` checks for ordinary datetimes. Not patched:
 `pandas.Timestamp.now()`, `threading` and `asyncio` timers.
+
+### How close it is
+
+`reports/parity.md` measures it: one strategy, written in MQL5 and in Python, run through both
+engines. The fidelity note attached to every Python run is that study's conclusion, kept in
+`sim/runner.py`.
 
 ### Isolation and lookahead
 
