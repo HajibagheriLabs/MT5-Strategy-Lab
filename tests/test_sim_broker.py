@@ -142,10 +142,12 @@ class TestStopsInsideAMinute:
             C["DEAL_REASON_TP"],
         )
 
-    def test_a_gap_fills_at_the_opening_price(self):
+    def test_a_gap_still_fills_at_the_level_on_minute_bars(self):
+        # The tester's "1 minute OHLC" mode fills at the level even when the minute opens
+        # beyond it; the parity study found every one of its stop and target exits there.
         broker = self.open_long([(1.0950, 1.0960, 1.0940, 1.0955)])
         deal = broker.deals[-1]
-        assert (deal.price, deal.comment) == (1.0950, "sl 1.09900")
+        assert (deal.price, deal.comment) == (1.0990, "sl 1.09900")
 
     def test_short_levels_are_watched_on_the_ask(self):
         rows = [FLAT, (1.1000, 1.1010, 1.1000, 1.1005), (1.1005, 1.1012, 1.1004, 1.1006)]
@@ -160,6 +162,31 @@ class TestStopsInsideAMinute:
         assert broker.deals[-1].price == 1.1012
 
 
+def test_on_real_ticks_a_stop_fills_at_the_crossing_tick():
+    import numpy as np
+    from simdata import POINT, spec
+
+    from strategylab.sim.broker import AccountSettings, Broker
+    from strategylab.sim.clock import SimClock
+    from strategylab.sim.market import TICK_DTYPE, Market, tick_stream
+
+    m1 = bars(START, [FLAT, FLAT])
+    ticks = np.zeros(3, dtype=TICK_DTYPE)
+    times = [ms(2025, 1, 6, 10, 0, 1), ms(2025, 1, 6, 10, 0, 30), ms(2025, 1, 6, 10, 1, 5)]
+    ticks["time_msc"] = times
+    ticks["time"] = np.array(times) // 1000
+    ticks["bid"] = [1.1000, 1.1000, 1.0985]  # the second tick jumps 5 points past the stop
+    ticks["ask"] = ticks["bid"] + 10 * POINT
+    market = Market("EURUSD@", m1, tick_stream(ticks, m1))
+    broker = Broker(market, spec(), AccountSettings(10_000, "USD", 100), ms(2025, 1, 6, 10))
+    clock = SimClock(market.stream.time_ms, ms(2025, 1, 6, 10), ms(2025, 1, 6, 10, 5),
+                     lambda t: broker.advance(t, ms(2025, 1, 6, 10, 5)), broker.finish)  # fmt: skip
+    clock.sleep(0)
+    broker.send(market_order(BUY, sl=1.0990))
+    clock.sleep(120)
+    assert (broker.deals[-1].price, broker.deals[-1].comment) == (1.0985, "sl 1.09900")
+
+
 class TestPendingOrders:
     def test_buy_limit_fills_at_its_price(self):
         rows = [FLAT, (1.1000, 1.1000, 1.0985, 1.0995)]
@@ -172,13 +199,13 @@ class TestPendingOrders:
         assert broker.positions[0].price_open == 1.0990
         assert broker.history_orders[-1].state == C["ORDER_STATE_FILLED"]
 
-    def test_buy_stop_after_a_gap_fills_at_the_market(self):
+    def test_buy_stop_after_a_gap_fills_at_its_price_on_minute_bars(self):
         rows = [FLAT, (1.1030, 1.1040, 1.1030, 1.1035)]
         _, broker, clock, _ = run(rows)
         first_minute(clock)
         broker.send(pending(C["ORDER_TYPE_BUY_STOP"], 1.1015))
         clock.sleep(120)
-        assert broker.positions[0].price_open == 1.1031
+        assert broker.positions[0].price_open == 1.1015
 
     def test_price_on_the_wrong_side_is_rejected(self):
         _, broker, clock, _ = run([FLAT] * 2)

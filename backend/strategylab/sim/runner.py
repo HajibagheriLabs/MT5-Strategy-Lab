@@ -216,7 +216,13 @@ def build_simulation(job: dict[str, Any]) -> tuple[Any, Any, Any, Any]:
         commission_per_lot=float(job.get("commission_per_lot", 0.0)),
     )
     start_ms, end_ms = int(job["start_ms"]), int(job["end_ms"])
-    broker = Broker(market, spec, account, start_ms)
+    trade_sessions = None
+    if job.get("sessions"):
+        from strategylab.sessions import Sessions
+
+        sessions = Sessions.from_json(Path(job["sessions"]).read_text(encoding="utf-8"))
+        trade_sessions = sessions.trade
+    broker = Broker(market, spec, account, start_ms, trade_sessions=trade_sessions)
     clock = SimClock(
         event_times_ms=stream.time_ms,
         now_ms=start_ms,
@@ -240,7 +246,7 @@ def child_main(job_path: str) -> int:
     _install_time(clock)
 
     script = Path(job["script"])
-    sys.argv = [str(script)]
+    sys.argv = [str(script), *job.get("args", [])]
     sys.path.insert(0, str(script.parent))
     status, error = "finished", None
     started = time.process_time()
@@ -292,6 +298,8 @@ class PythonRunSpec:
     commission_per_lot: float = 0.0
     granularity: Granularity = "m1_ohlc"
     warmup_days: int = 30
+    args: tuple[str, ...] = ()
+    """Command-line arguments the script receives in sys.argv after its own name."""
 
 
 @dataclass
@@ -410,6 +418,7 @@ def run_python_backtest(
     run_id: str,
     history: Path | None = None,
     ticks: Path | None = None,
+    sessions: Path | None = None,
     server: str | None = None,
     clock: Any | None = None,
     timeout_s: float = DEFAULT_TIMEOUT_S,
@@ -427,6 +436,7 @@ def run_python_backtest(
         "history": str(history) if history else None,
         "ticks": str(ticks) if ticks else None,
         "spec": str(spec_file),
+        "sessions": str(sessions) if sessions else None,
         "timeframe": spec.timeframe,
         "granularity": spec.granularity,
         "deposit": spec.deposit,
@@ -436,6 +446,7 @@ def run_python_backtest(
         "start_ms": _ms(spec.date_from),
         "end_ms": _ms(spec.date_to),
         "output": str(output),
+        "args": list(spec.args),
     }
     job_path = run_dir / "sim_job.json"
     job_path.write_text(json.dumps(job, indent=1), encoding="utf-8")

@@ -50,16 +50,29 @@ class TestMinutePath:
         two = bars(START, [(1.1000, 1.1010, 1.0990, 1.1005)], volume=2)
         three_high = bars(START, [(1.1000, 1.1010, 1.1000, 1.1005)], volume=3)
         three_low = bars(START, [(1.1000, 1.1005, 1.0990, 1.1005)], volume=3)
+        three_inside = bars(START, [(1.1000, 1.1005, 1.1000, 1.1005)], volume=3)
         assert prices(one) == [1.1005]
         assert prices(two) == [1.1000, 1.1005]
         assert prices(three_high) == [1.1000, 1.1010, 1.1005]
         assert prices(three_low) == [1.1000, 1.0990, 1.1005]
+        assert prices(three_inside) == [1.1000, 1.1005]
 
-    def test_times_inside_the_minute(self):
-        stream = synthetic_stream(bars(START, [(1.1, 1.2, 1.0, 1.15)]), POINT, DIGITS)
+    @pytest.mark.parametrize(
+        ("volume", "row", "seconds"),
+        [
+            (1, (1.1, 1.2, 1.0, 1.15), [30]),
+            (2, (1.1, 1.2, 1.0, 1.15), [0, 30]),
+            (3, (1.1, 1.2, 1.1, 1.15), [0, 30, 59]),
+            (3, (1.1, 1.15, 1.1, 1.15), [0, 59]),
+            (4, (1.1, 1.2, 1.0, 1.15), [0, 20, 40, 59]),
+            (90, (1.1, 1.2, 1.0, 1.15), [0, 20, 40, 59]),
+        ],
+    )
+    def test_times_inside_the_minute_match_the_tester(self, volume, row, seconds):
+        stream = synthetic_stream(bars(START, [row], volume=volume), POINT, DIGITS)
         base = ms(2025, 1, 6, 10, 0)
-        assert list(stream.time_ms - base) == [0, 20_000, 40_000, 59_000]
-        assert list(stream.first_of_bar) == [True, False, False, False]
+        assert list((stream.time_ms - base) // 1000) == seconds
+        assert list(stream.first_of_bar) == [True] + [False] * (len(seconds) - 1)
 
     def test_ask_is_bid_plus_the_minute_spread(self):
         stream = synthetic_stream(

@@ -22,6 +22,7 @@ from strategylab.params import (
 from strategylab.report import to_result
 from strategylab.result import BacktestResult, TickModel
 from strategylab.server_clock import ClockError, ServerClock
+from strategylab.sessions import SessionError, export_sessions
 from strategylab.sim.runner import DEFAULT_TIMEOUT_S as PYTHON_TIMEOUT_S
 from strategylab.sim.runner import Granularity, PythonRunSpec, SimRun, run_python_backtest
 from strategylab.tester import (
@@ -190,6 +191,7 @@ def run_python_strategy(
     commission_per_lot: float = 0.0,
     granularity: Granularity = "m1_ohlc",
     timeout_s: float = PYTHON_TIMEOUT_S,
+    args: tuple[str, ...] = (),
 ) -> SimRun:
     """Export the history a Python strategy needs, then run it in the simulator."""
     cache = settings.workspace_dir / "cache"
@@ -208,6 +210,13 @@ def run_python_strategy(
         clock = measure_clock(settings, date_from, date_to)
     except (ClockError, MT5DataError) as exc:
         notes.append(f"Deal times are server time only: {exc}")
+    sessions: Path | None = None
+    try:
+        sessions = export_sessions(
+            settings.terminal, symbol, bundle.m1.parent, settings.workspace_dir / "runs"
+        )
+    except SessionError as exc:
+        notes.append(str(exc))
     spec = PythonRunSpec(
         script=script,
         symbol=symbol,
@@ -219,6 +228,7 @@ def run_python_strategy(
         leverage=leverage,
         commission_per_lot=commission_per_lot,
         granularity=granularity,
+        args=tuple(args),
     )
     run_id = new_run_id()
     run = run_python_backtest(
@@ -227,6 +237,7 @@ def run_python_strategy(
         spec_file=bundle.spec,
         history=bundle.history,
         ticks=bundle.ticks,
+        sessions=sessions,
         run_dir=settings.workspace_dir / "runs" / run_id,
         run_id=run_id,
         server=bundle.server,

@@ -364,6 +364,7 @@ were checked against a real export and are reproduced exactly.
 | Only FOK fills are accepted on a market-execution symbol whose filling mode is FOK; IOC and Return get 10030 "Unsupported filling mode" | A tester run sending each fill type |
 | A stop loss closer than the stops level gets 10016 "Invalid stops" (5 points rejected, 50 accepted with a 10-point level) | Same run |
 | Swap in points, charged at each midnight after a weekday, triple on the symbol's three-day day (Wednesday here) | `symbol_info()` of the server and the MQL5 documentation |
+| Trading sessions: requests outside them get 10018 "Market closed"; stops and pending orders wait for the session to open | Found by the parity study: the tester rejected entries at 00:00:00 and 00:00:30 with "Market closed", and of 16 038 tester deals none fell outside the trade sessions except the forced "end of test" close |
 | The run starts with a balance deal at 00:00 of the first day, closes open positions at the last price before the end with the comment "end of test", and stops at 00:00 of the end date | Strategy Tester reports |
 | Function names, record fields, array layouts and the 223 trading constants | Copied from the installed package; a test compares them |
 
@@ -372,11 +373,17 @@ were checked against a real export and are reproduced exactly.
 Stated in `sim/broker.py` and repeated here. Market orders fill at once, buys at the ask and
 sells at the bid; requested price and deviation are ignored, as under market execution, with
 no slippage. Stop loss and take profit are checked at every price: a long position against the
-bid, a short against the ask. A level reached inside a minute fills at the level; a level the
-first price of a minute is already beyond (a gap) fills at that price; on recorded ticks every
-tick counts as a jump. When stop loss and take profit both fall inside a minute, the order of
-the minute's prices decides. Limit orders fill at their price; stop orders at their price, or at
-the market after a gap. Stop-limit orders and close-by are not simulated and raise an error
+bid, a short against the ask. When stop loss and take profit both fall inside a minute, the
+order of the minute's prices decides.
+
+Where a reached level fills was settled by the parity study, not assumed. The first version
+filled at the opening price when a minute opened beyond the level (a gap); the tester does not.
+In "1 minute OHLC" mode every one of its stop and target exits was exactly at the level, gaps
+included (a short's take profit crossed by a weekend gap was booked at the level, 40.16, where
+the gap price would have given 130.46). In real-tick mode stops filled at the level or worse
+and take profits at the level or better: the price of the tick that crossed the level. So on
+1-minute bars a reached level fills at the level, and on recorded ticks at the crossing tick's
+price. Limit orders fill at their price; stop orders follow the same rule as stop losses. Stop-limit orders and close-by are not simulated and raise an error
 naming them. Commission is a fixed amount per lot per deal, zero unless set; margin is checked
 when opening, and stop-out is not simulated. Hedging and netting accounts are both supported.
 Profit in a currency other than the deposit's is converted at the closing price when the
@@ -414,3 +421,12 @@ moment of export, in the simulation's future) with simulated values or zero.
 The run's symbol also answers to its name without the broker's suffix (`EURUSD` for `EURUSD@`),
 since names differ between brokers. Any other symbol raises an error: Python strategies are
 simulated on one symbol.
+
+### Trading sessions
+
+Brokers quote longer than they trade: on the demo server, EURUSD and USDJPY are quoted from
+00:00 to 24:00 but traded only from 00:05 (Monday) or 00:03 (other weekdays) to 23:59. The
+`MetaTrader5` Python package has no call for sessions, so `sessions.py` runs
+`mql5/SessionExport.mq5` for one day in the tester, reads the `SymbolInfoSessionTrade` and
+`SymbolInfoSessionQuote` values it prints, and caches them beside the symbol's history. Without
+them the simulator accepts orders whenever there is a price and says so in the run's notes.

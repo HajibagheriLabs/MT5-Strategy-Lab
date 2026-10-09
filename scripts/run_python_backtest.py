@@ -68,6 +68,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--commission", type=float, default=0.0, help="per lot, per deal")
     parser.add_argument("--ticks", action="store_true", help="use recorded ticks, not M1 bars")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_S)
+    parser.add_argument(
+        "script_args", nargs="*", help="arguments for the strategy itself, after --"
+    )
     args = parser.parse_args(argv)
     if not args.script.is_file():
         print(f"{args.script} does not exist.")
@@ -87,6 +90,7 @@ def main(argv: list[str]) -> int:
             commission_per_lot=args.commission,
             granularity="ticks" if args.ticks else "m1_ohlc",
             timeout_s=args.timeout,
+            args=tuple(args.script_args),
         )
     except (ConfigError, MT5DataError) as exc:
         print(exc)

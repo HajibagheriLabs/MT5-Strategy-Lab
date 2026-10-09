@@ -7,14 +7,16 @@ Fill assumptions:
   slippage. Ask is bid plus the spread recorded for that minute, or the recorded ask when
   running on real ticks.
 - Stop loss and take profit are checked at every price of the stream: a long position's levels
-  against the bid, a short's against the ask. A level reached inside a minute closes the
-  position at the level. A level the first price of a minute is already beyond (a gap) closes it
-  at that price. With real ticks every tick is such a jump, so it closes at the tick's price.
+  against the bid, a short's against the ask. On 1-minute bars a reached level closes the
+  position at the level, even when the price gapped beyond it, which is what the Strategy
+  Tester's "1 minute OHLC" mode does (every one of its stop and target exits in the parity
+  study was at the level). On real ticks the position closes at the price of the tick that
+  crossed the level, as the tester's real-tick mode does.
 - When stop loss and take profit both fall inside one minute, the order of the minute's prices
   decides: open, low, high, close on a rising bar and open, high, low, close on a falling one,
   as in the Strategy Tester's "1 minute OHLC" mode.
-- Limit orders fill at their price. Stop orders fill at their price, or at the first price
-  beyond it after a gap. Stop-limit orders and close-by are not simulated.
+- Limit orders fill at their price. Stop orders fill at their price on 1-minute bars and at
+  the crossing tick's price on real ticks. Stop-limit orders and close-by are not simulated.
 - Commission is a fixed amount per lot charged on every deal, zero unless set. Swap is charged
   at each server midnight that ends a weekday (triple on the symbol's three-day-swap day), from
   the symbol's current swap settings, in points or in money; interest-based swap modes are not
@@ -23,6 +25,13 @@ Fill assumptions:
   value as exported.
 - Margin is checked when a position is opened or a pending order fills; stop-out is not
   simulated. The fill policy, volume limits and stops level are enforced as the tester does.
+- Trading sessions: a request is accepted only when the present lies inside one of the
+  symbol's trade sessions and a price has arrived since that session opened (so not on a
+  holiday, and not before the run's first price); otherwise it is rejected with "Market closed".
+  Stops and pending orders wait for the session to open, as in the tester. Only the forced
+  close at the end of the run ignores sessions.
+- Swap is converted to the deposit currency at the last price before midnight, which is what
+  the tester does (seen in the cents of USDJPY swaps).
 """
 
 from __future__ import annotations
@@ -62,6 +71,7 @@ MESSAGES = {
     C["TRADE_RETCODE_INVALID_ORDER"]: "Invalid order",
     C["TRADE_RETCODE_INVALID_EXPIRATION"]: "Invalid expiration",
     C["TRADE_RETCODE_NO_CHANGES"]: "No changes",
+    C["TRADE_RETCODE_MARKET_CLOSED"]: "Market closed",
 }
 # MetaTrader numbers ENUM_DAY_OF_WEEK from Sunday = 0; Python's weekday() from Monday = 0.
 MQL_TO_PY_WEEKDAY = {0: 6, 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5}
@@ -178,6 +188,10 @@ class Broker:
     history_orders: list[Order] = field(default_factory=list)
     deals: list[DealRecord] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    trade_sessions: dict[int, list[tuple[int, int]]] | None = None
+    """Trade session windows per MQL5 weekday (0 = Sunday), seconds after midnight."""
+    now_ms: int = 0
+    """The simulated present, which can be later than the last price."""
     _next_order: int = 2
     _next_deal: int = 2
     _day: int = 0
@@ -191,7 +205,9 @@ class Broker:
         self.tick_value: float = float(s["trade_tick_value"])
         self.contract: float = float(s["trade_contract_size"])
         self.index = self.market.index_at(self.start_ms - 1)
+        self.now_ms = self.start_ms
         self._day = self.start_ms // DAY_MS
+        self._tradable = self._session_mask()
         self.balance = _money(self.account.deposit)
         self.deals.append(
             DealRecord(
@@ -225,6 +241,45 @@ class Broker:
                 f"{self.symbol} charges swap by interest (mode {swap_mode}), which is not "
                 "simulated: no swap was charged."
             )
+
+    def _session_mask(self) -> np.ndarray:
+        times = self.market.stream.time_ms // 1000
+        if self.trade_sessions is None:
+            self.notes.append(
+                "The symbol's trading sessions were not known, so orders were accepted at any "
+                "time prices were quoted."
+            )
+            return np.ones(len(times), dtype=bool)
+        # 1970-01-01 was a Thursday, which MQL5 numbers 4 (Sunday is 0).
+        weekday = (times // 86_400 + 4) % 7
+        second = times % 86_400
+        mask = np.zeros(len(times), dtype=bool)
+        for day, windows in self.trade_sessions.items():
+            for start, end in windows:
+                mask |= (weekday == int(day)) & (second >= start) & (second < end)
+        return mask
+
+    def _session_start_ms(self, moment_ms: int) -> int | None:
+        """Start of the trade session containing `moment_ms`, or None if trading is closed."""
+        midnight = moment_ms - moment_ms % DAY_MS
+        if self.trade_sessions is None:
+            return midnight
+        weekday = (moment_ms // DAY_MS + 4) % 7
+        second = (moment_ms - midnight) // 1000
+        for start, end in self.trade_sessions.get(int(weekday), []):
+            if start <= second < end:
+                return midnight + start * 1000
+        return None
+
+    @property
+    def market_open(self) -> bool:
+        if self.index < 0:
+            return False
+        last_price_ms = self.price_time_ms
+        session_start = self._session_start_ms(self.now_ms)
+        # A price must have arrived during this session and within the run: an order cannot be
+        # filled at Friday's close on a Monday holiday, or at a price from before the start.
+        return session_start is not None and last_price_ms >= max(session_start, self.start_ms)
 
     # --- prices --------------------------------------------------------------------------------
 
@@ -442,6 +497,8 @@ class Broker:
     def _deal(self, request: dict[str, Any], dry_run: bool) -> Outcome:
         if not self.has_price:
             return self._quote(C["TRADE_RETCODE_PRICE_OFF"])
+        if not self.market_open:
+            return self._quote(C["TRADE_RETCODE_MARKET_CLOSED"])
         order_type = int(request.get("type", -1))
         if order_type in STOP_LIMIT_TYPES:
             raise SimulatorUnsupportedError("order_send: stop-limit orders are not simulated.")
@@ -711,6 +768,8 @@ class Broker:
     def _place(self, request: dict[str, Any], dry_run: bool) -> Outcome:
         if not self.has_price:
             return self._quote(C["TRADE_RETCODE_PRICE_OFF"])
+        if not self.market_open:
+            return self._quote(C["TRADE_RETCODE_MARKET_CLOSED"])
         order_type = int(request.get("type", -1))
         if order_type in STOP_LIMIT_TYPES:
             raise SimulatorUnsupportedError("order_send: stop-limit orders are not simulated.")
@@ -757,6 +816,8 @@ class Broker:
         position = self._position(int(request.get("position", 0) or 0))
         if position is None:
             return self._quote(C["TRADE_RETCODE_POSITION_CLOSED"])
+        if not self.market_open:
+            return self._quote(C["TRADE_RETCODE_MARKET_CLOSED"])
         sl = float(request.get("sl", 0.0) or 0.0)
         tp = float(request.get("tp", 0.0) or 0.0)
         buy = position.type == BUY
@@ -774,6 +835,8 @@ class Broker:
         order = self._order(int(request.get("order", 0) or 0))
         if order is None:
             return self._quote(C["TRADE_RETCODE_INVALID_ORDER"])
+        if not self.market_open:
+            return self._quote(C["TRADE_RETCODE_MARKET_CLOSED"])
         price = float(request.get("price", order.price_open) or order.price_open)
         if not self._pending_price_ok(order.type, price):
             return self._quote(C["TRADE_RETCODE_INVALID_PRICE"])
@@ -795,6 +858,8 @@ class Broker:
         order = self._order(int(request.get("order", 0) or 0))
         if order is None:
             return self._quote(C["TRADE_RETCODE_INVALID_ORDER"])
+        if not self.market_open:
+            return self._quote(C["TRADE_RETCODE_MARKET_CLOSED"])
         if dry_run:
             return self._quote(DONE, order=order.ticket)
         self._retire(order, C["ORDER_STATE_CANCELED"])
@@ -831,6 +896,7 @@ class Broker:
                 events.append(event)
 
         bids, asks = stream.bid[lo:hi], stream.ask[lo:hi]
+        tradable = self._tradable[lo:hi]
         days = stream.time_ms[lo:hi] // DAY_MS
         new_day = np.flatnonzero(days != self._day)
         if len(new_day):
@@ -844,7 +910,7 @@ class Broker:
                 hits = asks >= order.price_open
             else:
                 hits = bids <= order.price_open
-            found = np.flatnonzero(hits)
+            found = np.flatnonzero(hits & tradable)
             if len(found):
                 offer(lo + int(found[0]), ("fill", order))
             if order.time_expiration_ms:
@@ -861,7 +927,7 @@ class Broker:
                 hits = (prices >= position.sl) if position.sl else np.zeros(len(prices), bool)
                 if position.tp:
                     hits = hits | (prices <= position.tp)
-            found = np.flatnonzero(hits)
+            found = np.flatnonzero(hits & tradable)
             if len(found):
                 offer(lo + int(found[0]), ("stop", position))
         return best, events
@@ -869,6 +935,7 @@ class Broker:
     def advance(self, target_ms: int, end_ms: int) -> None:
         """Handle everything that happens up to `target_ms` (never at or after `end_ms`)."""
         stream = self.market.stream
+        self.now_ms = min(target_ms, end_ms)
         limit = min(
             int(np.searchsorted(stream.time_ms, target_ms, side="right")),
             int(np.searchsorted(stream.time_ms, end_ms, side="left")),
@@ -883,9 +950,9 @@ class Broker:
                 self._day_from(limit - 1)
                 self.index = limit - 1
                 break
-            self.index = index
             if any(kind == "rollover" for kind, _ in events):
-                self._rollover(int(stream.time_ms[index]) // DAY_MS)
+                self._rollover(int(stream.time_ms[index]) // DAY_MS, index - 1)
+            self.index = index
             for kind, subject in events:
                 if kind == "fill" and subject in self.orders:
                     self._fill_pending(subject)
@@ -899,10 +966,11 @@ class Broker:
         if index >= 0:
             day = int(self.market.stream.time_ms[index]) // DAY_MS
             if day != self._day:
-                self._rollover(day)
+                self._rollover(day, self.index)
 
-    def _rollover(self, new_day: int) -> None:
-        """Charge swap for every midnight between the last price's day and `new_day`."""
+    def _rollover(self, new_day: int, price_index: int) -> None:
+        """Charge swap for every midnight between the last price's day and `new_day`, converted
+        at the price of `price_index`, the last one before midnight."""
         rollover3 = MQL_TO_PY_WEEKDAY.get(int(self.spec.get("swap_rollover3days", 3)), 2)
         for day in range(self._day, new_day):
             weekday = (datetime(1970, 1, 1) + timedelta(days=day)).weekday()
@@ -910,20 +978,22 @@ class Broker:
                 continue
             nights = 3 if weekday == rollover3 else 1
             for position in self.positions:
-                position.swap = _money(position.swap + self._swap(position) * nights)
+                charge = self._swap(position, price_index) * nights
+                position.swap = _money(position.swap + charge)
         self._day = new_day
 
-    def _swap(self, position: Position) -> float:
+    def _swap(self, position: Position, price_index: int) -> float:
         s = self.spec
         mode = int(s.get("swap_mode", 0))
         rate = float(s["swap_long"] if position.type == BUY else s["swap_short"])
+        stream = self.market.stream
+        index = max(0, price_index)
+        price = float(stream.bid[index] if position.type == BUY else stream.ask[index])
         if mode == C["SYMBOL_SWAP_MODE_POINTS"]:
-            price = self.bid if position.type == BUY else self.ask
             return self._to_account(rate * self.point * self.contract * position.volume, price)
         if mode == C["SYMBOL_SWAP_MODE_CURRENCY_DEPOSIT"]:
             return rate * position.volume
         if mode in (C["SYMBOL_SWAP_MODE_CURRENCY_SYMBOL"], C["SYMBOL_SWAP_MODE_CURRENCY_MARGIN"]):
-            price = self.bid if position.type == BUY else self.ask
             if s.get("currency_base", "").upper() == self.account.currency.upper():
                 return rate * position.volume
             return rate * position.volume * price
@@ -933,9 +1003,9 @@ class Broker:
         stream = self.market.stream
         buy = order.type in (BUY_LIMIT, BUY_STOP)
         market = self.ask if buy else self.bid
-        gap = (not stream.synthetic) or bool(stream.first_of_bar[self.index])
         stop_order = order.type in (BUY_STOP, SELL_STOP)
-        price = self._round_price(market if stop_order and gap else order.price_open)
+        on_ticks = not stream.synthetic
+        price = self._round_price(market if stop_order and on_ticks else order.price_open)
         order_type = BUY if buy else SELL
         if not self._margin_ok(order_type, order.volume_current, price):
             self._retire(order, C["ORDER_STATE_REJECTED"])
@@ -962,13 +1032,12 @@ class Broker:
         stream = self.market.stream
         buy = position.type == BUY
         price_now = self.bid if buy else self.ask
-        gap = (not stream.synthetic) or bool(stream.first_of_bar[self.index])
         if buy:
             hit_sl = bool(position.sl) and price_now <= position.sl
         else:
             hit_sl = bool(position.sl) and price_now >= position.sl
         level = position.sl if hit_sl else position.tp
-        price = self._round_price(price_now if gap else level)
+        price = self._round_price(level if stream.synthetic else price_now)
         kind = "sl" if hit_sl else "tp"
         reason = C["DEAL_REASON_SL"] if hit_sl else C["DEAL_REASON_TP"]
         order = self._filled_order(

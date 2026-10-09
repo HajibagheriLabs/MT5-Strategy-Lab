@@ -60,7 +60,7 @@ def dataset(tmp_path_factory):
     return write_dataset(folder, bars(datetime(2025, 1, 6, 10, 0), rows))
 
 
-def run(tmp_path, dataset, source, *, timeout_s=120, name="strategy.py"):
+def run(tmp_path, dataset, source, *, timeout_s=120, name="strategy.py", args=()):
     script = tmp_path / name
     script.write_text(textwrap.dedent(source), encoding="utf-8")
     m1, spec_file = dataset
@@ -70,6 +70,7 @@ def run(tmp_path, dataset, source, *, timeout_s=120, name="strategy.py"):
         timeframe="H1",
         date_from=date(2025, 1, 6),
         date_to=date(2025, 1, 7),
+        args=tuple(args),
     )
     return run_python_backtest(
         spec,
@@ -145,6 +146,11 @@ def test_a_stuck_strategy_is_stopped_at_the_timeout(tmp_path, dataset):
     sim = run(tmp_path, dataset, "while True:\n    pass\n", timeout_s=5)
     assert sim.outcome is SimOutcome.TIMEOUT
     assert "within 5 s" in sim.message
+
+
+def test_the_script_gets_its_arguments(tmp_path, dataset):
+    sim = run(tmp_path, dataset, "import sys\nprint('ARGS', sys.argv[1:])\n", args=["--fast", "7"])
+    assert "ARGS ['--fast', '7']" in sim.log_path.read_text(encoding="utf-8")
 
 
 def test_print_output_is_kept(tmp_path, dataset):

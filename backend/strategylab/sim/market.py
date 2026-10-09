@@ -47,8 +47,20 @@ DAY_MS = 86_400_000
 # 1970-01-01 was a Thursday; MetaTrader's weekly bars open on Sunday.
 WEEK_OFFSET_MS = 3 * DAY_MS
 TICK_FLAGS_BID_ASK = CONSTANTS["TICK_FLAG_BID"] | CONSTANTS["TICK_FLAG_ASK"]
-# Where the synthetic prices of a minute sit inside it.
-OFFSETS_MS = {1: (0,), 2: (0, 59_000), 3: (0, 30_000, 59_000), 4: (0, 20_000, 40_000, 59_000)}
+# Where the tester puts the generated prices inside a minute, by the minute's tick volume and
+# the price's slot (open, first extreme, second extreme, close). Measured from 28 199 ticks the
+# tester generated in "1 minute OHLC" mode: one tick sits at 0:30, two at 0:00 and 0:30, three at
+# 0:00, 0:30 and 0:59, four or more at 0:00, 0:20, 0:40 and 0:59.
+OFFSETS_MS = np.array(
+    [
+        [0, 0, 0, 0],
+        [30_000, 0, 0, 0],
+        [0, 0, 0, 30_000],
+        [0, 30_000, 0, 59_000],
+        [0, 20_000, 40_000, 59_000],
+    ],
+    dtype=np.int64,
+)
 
 TIMEFRAME_MS: dict[int, int] = {
     CONSTANTS[f"TIMEFRAME_M{m}"]: m * MINUTE_MS for m in (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30)
@@ -115,8 +127,10 @@ def synthetic_stream(m1: np.ndarray, point: float, digits: int) -> PriceStream:
 
     Four prices per bar: open, then low and high (low first on a rising bar, high first on a
     falling one), then close. Bars with fewer ticks get fewer prices: three give open, the
-    extreme that is neither open nor close, close; two give open and close; one gives the
-    close only. Ask is bid plus the bar's recorded spread.
+    extreme that is neither open nor close, close (just open and close when no extreme lies
+    outside them); two give open and close; one gives the close only. Ask is bid plus the bar's
+    recorded spread. The order follows the help page; where each price sits inside the minute
+    was measured from the tester (see OFFSETS_MS).
     """
     n = len(m1)
     o, h, l, c = (m1[k].astype(np.float64) for k in ("open", "high", "low", "close"))  # noqa: E741
@@ -136,19 +150,14 @@ def synthetic_stream(m1: np.ndarray, point: float, digits: int) -> PriceStream:
     # With three ticks only one extreme fits; take the one that lies outside open and close.
     use_high = three & (above | ~below) & ~(rising & below)
     prices[three, 1] = np.where(use_high[three], h[three], l[three])
-    keep[three, 1] = True
+    keep[three, 1] = above[three] | below[three]
     two = volume == 2
     keep[two, 0] = keep[two, 3] = True
     one = volume == 1
     prices[one, 0] = c[one]
     keep[one, 0] = True
 
-    offsets = np.zeros((n, 4), dtype=np.int64)
-    for count, positions in OFFSETS_MS.items():
-        rows = volume == count
-        columns = np.flatnonzero(keep[np.argmax(rows)]) if rows.any() else []
-        for position, column in zip(positions, columns, strict=False):
-            offsets[rows, column] = position
+    offsets = OFFSETS_MS[volume]
 
     bar_index = np.repeat(np.arange(n)[:, None], 4, axis=1)
     first = np.zeros((n, 4), dtype=bool)
