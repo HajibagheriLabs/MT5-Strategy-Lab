@@ -20,6 +20,8 @@ MODULES = [
     "strategylab.winproc",
     "strategylab.sim.broker",
     "strategylab.sim.clock",
+    "strategylab.sim.constants",
+    "strategylab.sim.market",
     "strategylab.sim.runner",
     "strategylab.sim.shim",
 ]

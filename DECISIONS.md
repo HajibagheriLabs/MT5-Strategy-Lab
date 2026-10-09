@@ -323,3 +323,94 @@ reports and checked by a test. Findings that shaped the definitions:
   empty.
 - Not verified: how MetaTrader attributes commission charged on entry deals to trades, because
   the demo account charges no commission.
+
+## History export
+
+`mt5_data.py` is the only module that imports the `MetaTrader5` package; a test scans the source
+tree to keep it so, and another scans `mt5_data.py` for any trading call. It reads through a
+data session:
+
+- If the terminal is not running, StrategyLab starts it itself with a configuration file that
+  raises `[Charts] MaxBars` to 10 000 000 for that session and switches off chart EAs and live
+  trading (`[Experts] Enabled=0`, `AllowLiveTrading=0`). Verified: the session reports
+  `maxbars=10000000`, a full month of 2025 M1 bars comes back (31 418 bars for January), and the
+  terminal's own `config\common.ini` still says 100 000 afterwards.
+- `mt5.initialize()` then attaches to that terminal. If StrategyLab's copy is not up in time the
+  package starts its own copy without those settings (seen once, when the previous terminal
+  was still closing), so a session that finds the default bar limit is refused rather than
+  allowed to return two months of M1 as if it were a year. Launches that exit at once are
+  retried.
+- When the session ends, every terminal on that data folder that was not running before is
+  closed through its window.
+- Bars are fetched a month at a time and ticks a day at a time, each request repeated until the
+  count stops changing, because history arrives in the background.
+- Exports are cached as parquet under `workspace\cache\history\<server>\<symbol>\`, keyed by
+  timeframe and date range. A range that reaches today is never cached. The symbol's full
+  `symbol_info()` is saved alongside with the account currency and margin mode.
+
+A simulated run uses M1 bars from 30 days before its start (the warm-up), the run's own
+timeframe for 1000 bars before that, and optionally the recorded ticks of the run itself. The
+array layouts returned by the package (`time` int64, `tick_volume` uint64, `spread` int32, ...)
+were checked against a real export and are reproduced exactly.
+
+## The Python simulator
+
+### What it reproduces, and from where
+
+| Behaviour | Source |
+|---|---|
+| Prices inside a minute: open, low, high, close on a rising bar and open, high, low, close on a falling one; a doji moves against the previous bar; fewer prices for bars with 1, 2 or 3 ticks | The "Real and Generated Ticks" help page, "1 Minute OHLC" |
+| Ask = bid + the minute's recorded spread | Same page |
+| Only FOK fills are accepted on a market-execution symbol whose filling mode is FOK; IOC and Return get 10030 "Unsupported filling mode" | A tester run sending each fill type |
+| A stop loss closer than the stops level gets 10016 "Invalid stops" (5 points rejected, 50 accepted with a 10-point level) | Same run |
+| Swap in points, charged at each midnight after a weekday, triple on the symbol's three-day day (Wednesday here) | `symbol_info()` of the server and the MQL5 documentation |
+| The run starts with a balance deal at 00:00 of the first day, closes open positions at the last price before the end with the comment "end of test", and stops at 00:00 of the end date | Strategy Tester reports |
+| Function names, record fields, array layouts and the 223 trading constants | Copied from the installed package; a test compares them |
+
+### Fill model
+
+Stated in `sim/broker.py` and repeated here. Market orders fill at once, buys at the ask and
+sells at the bid; requested price and deviation are ignored, as under market execution, with
+no slippage. Stop loss and take profit are checked at every price: a long position against the
+bid, a short against the ask. A level reached inside a minute fills at the level; a level the
+first price of a minute is already beyond (a gap) fills at that price; on recorded ticks every
+tick counts as a jump. When stop loss and take profit both fall inside a minute, the order of
+the minute's prices decides. Limit orders fill at their price; stop orders at their price, or at
+the market after a gap. Stop-limit orders and close-by are not simulated and raise an error
+naming them. Commission is a fixed amount per lot per deal, zero unless set; margin is checked
+when opening, and stop-out is not simulated. Hedging and netting accounts are both supported.
+Profit in a currency other than the deposit's is converted at the closing price when the
+deposit currency is the symbol's base currency (USDJPY in a USD account), otherwise with the
+tick value exported with the symbol.
+
+### Time
+
+The simulated clock is server time. Time moves only when the strategy sleeps; a sleep that
+would end before the next price ends at that price instead, since nothing observable changes in
+between. That keeps a script polling every second practical: the sample strategy's year on
+EURUSD H1 is about 1.45 million sleeps and takes about 100 s. The end of the history raises
+`SimulationFinished`, a `BaseException`, so a strategy's `except Exception` does not swallow it.
+A strategy that makes 200 000 calls without sleeping is stopped with an explanation, since its
+clock can never move.
+
+In the strategy's process, `time.sleep`, `time.time`, `time.time_ns`, `time.monotonic`,
+`time.perf_counter`, `time.gmtime`, `time.localtime`, `time.strftime`, `time.ctime`,
+`datetime.datetime.now/utcnow/today/fromtimestamp` and `datetime.date.today` are replaced.
+Server time is presented as UTC, which is how the `MetaTrader5` package presents bar and tick
+times, so `time.time()` and a bar's `time` field can be compared directly. The patched datetime
+classes still pass `isinstance` checks for ordinary datetimes. Not patched:
+`pandas.Timestamp.now()`, `threading` and `asyncio` timers.
+
+### Isolation and lookahead
+
+A strategy runs in its own process (`python -I -m strategylab.sim.runner`), in its run folder,
+with a wall-clock timeout; its output goes to `strategy.log`. `MetaTrader5` in that process is the
+stand-in. Every function that returns market data cuts the request at the simulated present, and
+the bar still forming is built only from the prices seen so far. A test checks this at 150
+random moments across seven timeframes, comparing the forming bar with one rebuilt from scratch.
+`symbol_info()` replaces the live and session fields of the exported spec (which describe the
+moment of export, in the simulation's future) with simulated values or zero.
+
+The run's symbol also answers to its name without the broker's suffix (`EURUSD` for `EURUSD@`),
+since names differ between brokers. Any other symbol raises an error: Python strategies are
+simulated on one symbol.
