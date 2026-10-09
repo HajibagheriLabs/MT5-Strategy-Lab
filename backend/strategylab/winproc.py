@@ -7,13 +7,22 @@ last resort after a grace period.
 
 from __future__ import annotations
 
+import subprocess
 import sys
+import threading
 import time
-from typing import Literal
+from collections.abc import Callable
+from typing import Literal, Protocol
 
 import psutil
 
 StopOutcome = Literal["gone", "closed", "killed"]
+POLL_S = 0.5
+
+
+class Waitable(Protocol):
+    def wait(self, timeout: float | None = None) -> int: ...
+
 
 WM_CLOSE = 0x0010
 GW_OWNER = 4
@@ -100,3 +109,29 @@ def stop_process(pid: int, grace_seconds: float = 30.0) -> StopOutcome:
         return "killed"
     except psutil.NoSuchProcess:
         return "closed"
+
+
+def wait_for(
+    process: Waitable,
+    timeout_s: float,
+    cancel: threading.Event | None = None,
+    tick: Callable[[], None] | None = None,
+) -> tuple[int | None, str | None]:
+    """Wait for the process to exit: (exit code, None), or (None, "timeout" or "cancelled").
+
+    `tick` runs between waits, which is where a caller follows the logs.
+    """
+    deadline = time.monotonic() + timeout_s
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, "timeout"
+        try:
+            return process.wait(timeout=min(POLL_S, remaining)), None
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            if tick is not None:
+                tick()
+        if cancel is not None and cancel.is_set():
+            return None, "cancelled"

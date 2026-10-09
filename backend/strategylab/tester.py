@@ -31,7 +31,7 @@ from strategylab.config import (
 from strategylab.params import SetFile
 from strategylab.report import ParsedReport, ReportError, parse_report
 from strategylab.result import TickModel
-from strategylab.winproc import StopOutcome, stop_process
+from strategylab.winproc import StopOutcome, stop_process, wait_for
 
 TIMEFRAMES = (
     "M1", "M2", "M3", "M4", "M5", "M6", "M10", "M12", "M15", "M20", "M30",
@@ -63,7 +63,6 @@ FIDELITY = {
 }
 DEFAULT_TIMEOUT_S = 1800.0
 STOP_GRACE_S = 30.0
-POLL_S = 0.5
 REPORTS_SUBDIR = PureWindowsPath("StrategyLab", "reports")
 PARAMETER_FILE_PREFIX = "strategylab-"
 # A launch that the already running terminal swallows comes back almost at once.
@@ -325,32 +324,6 @@ class TesterRun:
 
 def new_run_id() -> str:
     return f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
-
-
-def wait_for(
-    process: Process,
-    timeout_s: float,
-    cancel: threading.Event | None = None,
-    tick: Callable[[], None] | None = None,
-) -> tuple[int | None, str | None]:
-    """Wait for the process to exit: (exit code, None), or (None, "timeout" or "cancelled").
-
-    `tick` runs between waits, which is where a caller follows the logs.
-    """
-    deadline = time.monotonic() + timeout_s
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return None, "timeout"
-        try:
-            return process.wait(timeout=min(POLL_S, remaining)), None
-        except subprocess.TimeoutExpired:
-            pass
-        finally:
-            if tick is not None:
-                tick()
-        if cancel is not None and cancel.is_set():
-            return None, "cancelled"
 
 
 def run_tester(
