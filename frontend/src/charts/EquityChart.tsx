@@ -27,7 +27,7 @@ export function EquityChart({ points, height = 320, label }: Props) {
   useEffect(() => {
     if (!host.current) return
     const c = chartColors()
-    const chart: IChartApi = createChart(host.current, baseOptions())
+    const chart: IChartApi = createChart(host.current, baseOptions({ spansDays: true }))
     const balance = chart.addSeries(LineSeries, {
       color: c.fg,
       lineWidth: 2,

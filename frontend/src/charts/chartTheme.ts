@@ -1,5 +1,5 @@
 import { ColorType, CrosshairMode, LineStyle } from 'lightweight-charts'
-import type { DeepPartial, ChartOptions } from 'lightweight-charts'
+import type { DeepPartial, ChartOptions, Time } from 'lightweight-charts'
 import { tokenValue } from '../theme-context'
 
 /** Token colours as the chart library needs them, read at the moment of drawing so a theme
@@ -25,7 +25,15 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-export function baseOptions(): DeepPartial<ChartOptions> {
+/** Chart time as server time, `2025-04-14 13:00`, for the crosshair label. */
+export function formatChartTime(time: Time): string {
+  const seconds = typeof time === 'number' ? time : 0
+  return new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ')
+}
+
+/** `spansDays`: the chart covers weeks or months, so its axis marks dates only; an hour mark
+ * between two months reads as noise. The crosshair still shows the time. */
+export function baseOptions({ spansDays = false } = {}): DeepPartial<ChartOptions> {
   const c = chartColors()
   return {
     autoSize: true,
@@ -42,7 +50,15 @@ export function baseOptions(): DeepPartial<ChartOptions> {
       horzLines: { color: c.line, style: LineStyle.Solid },
     },
     rightPriceScale: { borderColor: c.lineStrong },
-    timeScale: { borderColor: c.lineStrong, timeVisible: true, secondsVisible: false },
+    timeScale: {
+      borderColor: c.lineStrong,
+      timeVisible: !spansDays,
+      secondsVisible: false,
+      // A whole run fits the width: pinning both edges keeps the first and last labels inside it.
+      fixLeftEdge: spansDays,
+      fixRightEdge: spansDays,
+    },
+    localization: spansDays ? { timeFormatter: formatChartTime } : {},
     // The wheel scrolls the page, as everywhere else in it; drag pans and dragging an axis scales.
     handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true },

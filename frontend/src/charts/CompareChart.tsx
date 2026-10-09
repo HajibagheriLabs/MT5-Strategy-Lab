@@ -17,7 +17,7 @@ export function CompareChart({ lines, height = 340 }: { lines: CompareLine[]; he
   useEffect(() => {
     if (!host.current) return
     const c = chartColors()
-    const chart = createChart(host.current, baseOptions())
+    const chart = createChart(host.current, baseOptions({ spansDays: true }))
     lines.forEach((line, index) => {
       const style = lineStyle(index)
       const series = chart.addSeries(LineSeries, {
