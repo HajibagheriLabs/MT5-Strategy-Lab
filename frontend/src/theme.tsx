@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ThemeContext } from './theme-context'
 import type { Preference, Theme } from './theme-context'
@@ -33,7 +33,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const theme = preference === 'system' ? system : preference
 
-  useEffect(() => {
+  // A layout effect runs before any child's effect, so charts drawing on a theme change read
+  // the new theme's colours, not the old ones.
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
