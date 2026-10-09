@@ -19,8 +19,10 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -95,6 +97,7 @@ class SimOutcome(StrEnum):
     ZERO_TRADES = "zero_trades"
     ERROR = "error"
     TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
 
 
 # --- the child process -------------------------------------------------------------------------
@@ -239,11 +242,41 @@ def build_simulation(job: dict[str, Any]) -> tuple[Any, Any, Any, Any]:
     return market, broker, clock, terminal
 
 
-def child_main(job_path: str) -> int:
+def _run_script(script: Path, constants: dict[str, Any]) -> None:
+    """Run the script as __main__, with the given module-level constants replaced."""
     import runpy
 
+    if not constants:
+        runpy.run_path(str(script), run_name="__main__")
+        return
+    import ast
+    import types
+
+    from strategylab.pystrategy import apply_constants
+
+    tree = ast.parse(script.read_bytes(), filename=str(script))
+    apply_constants(tree, constants)
+    code = compile(tree, str(script), "exec")
+    module = types.ModuleType("__main__")
+    module.__file__ = str(script)
+    previous = sys.modules.get("__main__")
+    sys.modules["__main__"] = module
+    try:
+        exec(code, module.__dict__)
+    finally:
+        if previous is not None:
+            sys.modules["__main__"] = previous
+
+
+def child_main(job_path: str) -> int:
     from strategylab.sim import shim
     from strategylab.sim.clock import SimulationFinished
+
+    # The log is followed while the strategy runs, and strategies print whatever they like:
+    # isolated mode ignores PYTHONIOENCODING, so the encoding is set here.
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(AttributeError, ValueError):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
     job = json.loads(Path(job_path).read_text(encoding="utf-8"))
     _, broker, clock, terminal = build_simulation(job)
@@ -256,7 +289,7 @@ def child_main(job_path: str) -> int:
     status, error = "finished", None
     started = time.process_time()
     try:
-        runpy.run_path(str(script), run_name="__main__")
+        _run_script(script, job.get("constants") or {})
         status = "returned"
     except SimulationFinished:
         status = "finished"
@@ -305,6 +338,8 @@ class PythonRunSpec:
     warmup_days: int = 30
     args: tuple[str, ...] = ()
     """Command-line arguments the script receives in sys.argv after its own name."""
+    constants: dict[str, Any] = field(default_factory=dict)
+    """Module-level constants given other values for this run (see pystrategy)."""
 
 
 @dataclass
@@ -414,6 +449,33 @@ def to_result(
     return result
 
 
+class _LogFollower:
+    """Hands each complete line the strategy prints to a callback, as it is printed."""
+
+    def __init__(self, path: Path, sink: Callable[[str], None] | None) -> None:
+        self.path, self.sink = path, sink
+        self.offset = 0
+        self.partial = b""
+
+    def poll(self, final: bool = False) -> None:
+        if self.sink is None:
+            return
+        try:
+            with self.path.open("rb") as handle:
+                handle.seek(self.offset)
+                raw = handle.read()
+        except OSError:
+            return
+        self.offset += len(raw)
+        data = self.partial + raw
+        *complete, self.partial = data.split(b"\n")
+        if final and self.partial:
+            complete.append(self.partial)
+            self.partial = b""
+        for line in complete:
+            self.sink(line.decode("utf-8", "replace").rstrip("\r"))
+
+
 def run_python_backtest(
     spec: PythonRunSpec,
     *,
@@ -428,8 +490,15 @@ def run_python_backtest(
     clock: Any | None = None,
     timeout_s: float = DEFAULT_TIMEOUT_S,
     python: str = sys.executable,
+    cancel: threading.Event | None = None,
+    on_log: Callable[[str], None] | None = None,
+    on_parsing: Callable[[], None] | None = None,
 ) -> SimRun:
-    """Run the script on already exported history and normalise what it did."""
+    """Run the script on already exported history and normalise what it did.
+
+    Setting `cancel` stops the strategy's process; `on_log` receives each line it prints as it
+    prints it; `on_parsing` is called before its output is turned into the result.
+    """
     if spec.granularity == "ticks" and ticks is None:
         raise ValueError("Tick granularity needs exported ticks.")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -452,12 +521,13 @@ def run_python_backtest(
         "end_ms": _ms(spec.date_to),
         "output": str(output),
         "args": list(spec.args),
+        "constants": spec.constants,
     }
     job_path = run_dir / "sim_job.json"
     job_path.write_text(json.dumps(job, indent=1), encoding="utf-8")
     environment = {key: value for key, value in os.environ.items() if not key.startswith("PYTHON")}
-    environment["PYTHONIOENCODING"] = "utf-8"
     started = time.monotonic()
+    follower = _LogFollower(log_path, on_log)
     with log_path.open("wb") as log:
         process = subprocess.Popen(
             [python, "-I", "-m", "strategylab.sim.runner", str(job_path)],
@@ -467,21 +537,24 @@ def run_python_backtest(
             env=environment,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-        try:
-            process.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            from strategylab.winproc import kill_tree
+        from strategylab.winproc import kill_tree, wait_for
 
+        _, stopped_by = wait_for(process, timeout_s, cancel, follower.poll)
+        if stopped_by is not None:
             kill_tree(process.pid)
+            follower.poll()
+            if stopped_by == "cancelled":
+                outcome, message = SimOutcome.CANCELLED, "Cancelled; the strategy was stopped."
+            else:
+                outcome = SimOutcome.TIMEOUT
+                message = (
+                    f"The strategy did not finish within {timeout_s:.0f} s and was stopped. A "
+                    "loop that never calls time.sleep() keeps the simulated clock still."
+                )
             return SimRun(
-                run_id,
-                SimOutcome.TIMEOUT,
-                f"The strategy did not finish within {timeout_s:.0f} s and was stopped. A loop "
-                "that never calls time.sleep() keeps the simulated clock still.",
-                run_dir,
-                log_path,
-                elapsed_s=time.monotonic() - started,
+                run_id, outcome, message, run_dir, log_path, elapsed_s=time.monotonic() - started
             )
+    follower.poll(final=True)
     elapsed = time.monotonic() - started
     if not output.is_file():
         tail = log_path.read_text(encoding="utf-8", errors="replace")[-2000:]
@@ -494,6 +567,8 @@ def run_python_backtest(
             log_path,
             elapsed_s=elapsed,
         )
+    if on_parsing is not None:
+        on_parsing()
     raw = json.loads(output.read_text(encoding="utf-8"))
     stats = {k: raw[k] for k in ("status", "sleeps", "cpu_seconds", "stopped_at_ms")}
     build = None

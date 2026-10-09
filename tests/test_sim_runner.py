@@ -1,5 +1,6 @@
 import json
 import textwrap
+import threading
 from datetime import UTC, date, datetime
 
 import pytest
@@ -60,7 +61,9 @@ def dataset(tmp_path_factory):
     return write_dataset(folder, bars(datetime(2025, 1, 6, 10, 0), rows))
 
 
-def run(tmp_path, dataset, source, *, timeout_s=120, name="strategy.py", args=()):
+def run(
+    tmp_path, dataset, source, *, timeout_s=120, name="strategy.py", args=(), constants=None, **kw
+):
     script = tmp_path / name
     script.write_text(textwrap.dedent(source), encoding="utf-8")
     m1, spec_file = dataset
@@ -71,6 +74,7 @@ def run(tmp_path, dataset, source, *, timeout_s=120, name="strategy.py", args=()
         date_from=date(2025, 1, 6),
         date_to=date(2025, 1, 7),
         args=tuple(args),
+        constants=constants or {},
     )
     return run_python_backtest(
         spec,
@@ -81,6 +85,7 @@ def run(tmp_path, dataset, source, *, timeout_s=120, name="strategy.py", args=()
         server="Test-Server",
         clock=CLOCK,
         timeout_s=timeout_s,
+        **kw,
     )
 
 
@@ -156,3 +161,51 @@ def test_the_script_gets_its_arguments(tmp_path, dataset):
 def test_print_output_is_kept(tmp_path, dataset):
     sim = run(tmp_path, dataset, "print('hello from the strategy')\n")
     assert "hello from the strategy" in sim.log_path.read_text(encoding="utf-8")
+
+
+def test_any_text_can_be_printed(tmp_path, dataset):
+    sim = run(tmp_path, dataset, "print('profit \u20ac, \u0633\u0648\u062f')\n")
+    assert sim.outcome is SimOutcome.ZERO_TRADES, sim.message
+    assert "profit \u20ac, \u0633\u0648\u062f" in sim.log_path.read_text(encoding="utf-8")
+
+
+def test_printed_lines_are_followed_and_parsing_announced(tmp_path, dataset):
+    lines, parsing = [], []
+    source = "print('first')\nprint('second', end='')\n"
+    sim = run(
+        tmp_path,
+        dataset,
+        source,
+        on_log=lines.append,
+        on_parsing=lambda: parsing.append(True),
+    )
+    assert sim.outcome is SimOutcome.ZERO_TRADES
+    assert lines[:2] == ["first", "second"]
+    assert parsing == [True]
+
+
+def test_cancel_stops_the_strategy(tmp_path, dataset):
+    cancel = threading.Event()
+    threading.Timer(1.0, cancel.set).start()
+    sim = run(
+        tmp_path, dataset, "print('spinning', flush=True)\nwhile True:\n    pass\n", cancel=cancel
+    )
+    assert sim.outcome is SimOutcome.CANCELLED
+    assert sim.message == "Cancelled; the strategy was stopped."
+    assert sim.elapsed_s < 30
+
+
+def test_constants_are_replaced_without_touching_the_file(tmp_path, dataset):
+    source = "FAST = 3  # fast period\nNAME = 'a'\nprint('values', FAST, NAME, __name__)\n"
+    sim = run(tmp_path, dataset, source, constants={"FAST": 7, "NAME": "b"})
+    log = sim.log_path.read_text(encoding="utf-8")
+    assert "values 7 b __main__" in log
+    assert (tmp_path / "strategy.py").read_text(encoding="utf-8").startswith("FAST = 3")
+
+
+def test_an_error_in_a_script_with_replaced_constants_points_at_its_line(tmp_path, dataset):
+    source = "FAST = 3\n\nraise RuntimeError(FAST)\n"
+    sim = run(tmp_path, dataset, source, constants={"FAST": 9})
+    assert sim.outcome is SimOutcome.ERROR
+    assert 'strategy.py", line 3' in sim.message
+    assert "RuntimeError: 9" in sim.message
