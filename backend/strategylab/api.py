@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from strategylab import __version__
 from strategylab.catalog import CatalogView, HistoryCatalog, Measure
+from strategylab.charts import BarStore, BarsUnavailableError, Exporter, as_points, window
 from strategylab.compiler import CompileError, CompileResult, compile_upload
 from strategylab.config import (
     REPO_ROOT,
@@ -65,6 +66,8 @@ MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 LOOPBACK_NAMES = {"127.0.0.1", "localhost", "::1", "[::1]"}
 EVENT_POLL_S = 0.25
 KEEP_ALIVE_S = 15.0
+FINAL_EVENT_GRACE_S = 2.0
+FINISHED_STATES = {"done", "failed", "cancelled", "deleted"}
 PYTHON_TIMEFRAMES = ("M1", "M5", "M15", "M30", "H1", "H4", "D1")
 PYTHON_MODELS = (TickModel.OHLC_M1, TickModel.REAL_TICKS)
 
@@ -91,6 +94,7 @@ class Services:
     compiler: Compiler = _compile
     executor: Executor | None = None
     measure: Measure = _default_measure
+    bar_exporter: Exporter | None = None
     workspace_dir: Path | None = None
     """Where to keep runs when the settings cannot be loaded."""
     start_worker: bool = True
@@ -117,6 +121,8 @@ class Lab:
         executor = services.executor or BacktestExecutor(self.require_settings)
         self.queue = JobQueue(self.store, executor, workspace / "runs", self.events)
         self._catalog: HistoryCatalog | None = None
+        exporter = {"exporter": services.bar_exporter} if services.bar_exporter else {}
+        self.bars = BarStore(self.require_settings, self.queue.terminal_lock, **exporter)
 
     def settings(self) -> Settings | None:
         """The current settings, loading them again if they failed before (the user may have
@@ -276,6 +282,22 @@ class DealsOut(BaseModel):
 class LogSource(BaseModel):
     source: str
     size: int
+
+
+class Bar(BaseModel):
+    time: int
+    """Server time, seconds since 1970, as MetaTrader stamps bars."""
+    open: float
+    high: float
+    low: float
+    close: float
+
+
+class BarsOut(BaseModel):
+    timeframe: str
+    bars: list[Bar]
+    first_index: int
+    total: int
 
 
 class ResultSummary(BaseModel):
@@ -858,6 +880,35 @@ def create_app(services: Services | None = None) -> FastAPI:
         ]
         return SeriesOut(points=points, total=len(full), downsampled=len(sampled) < len(full))
 
+    @router.get("/runs/{run_id}/bars")
+    def bars(
+        run_id: str,
+        around: int | None = None,
+        before: int | None = None,
+        after: int | None = None,
+        count: int = Query(500, ge=1, le=5000),
+    ) -> BarsOut:
+        run = _run(run_id)
+        if not run.status.finished or run.status is not RunStatus.DONE:
+            raise HTTPException(409, f"Run {run_id} has no chart until it is done.")
+        try:
+            frame = lab.bars.bars(run, lab.queue.runs_dir / run.id)
+        except BarsUnavailableError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        part, first = window(frame, around=around, before=before, after=after, count=count)
+        return BarsOut(
+            timeframe=run.settings.timeframe,
+            bars=[Bar(**point) for point in as_points(part)],
+            first_index=first,
+            total=len(frame),
+        )
+
+    @router.get("/metrics")
+    def metric_definitions() -> dict[str, str]:
+        from strategylab.metrics import DEFINITIONS
+
+        return dict(DEFINITIONS)
+
     @router.get("/runs/{run_id}/logs")
     def logs(run_id: str) -> list[LogSource]:
         run = _run(run_id)
@@ -912,6 +963,8 @@ def create_app(services: Services | None = None) -> FastAPI:
             run = _run(run_id)
             yield _sse("state", {"id": run.id, "status": str(run.status), "snapshot": True})
         quiet = 0.0
+        final_sent = False
+        waited_for_final = 0.0
         while True:
             if await request.is_disconnected():
                 return
@@ -920,14 +973,20 @@ def create_app(services: Services | None = None) -> FastAPI:
                 seq = event.seq
                 yield _sse(event.kind, {"run_id": event.run_id, **event.data}, event.seq)
                 quiet = 0.0
+                if event.kind == "state" and event.data.get("status") in FINISHED_STATES:
+                    final_sent = True
             seq = max(seq, latest)
             if run_id is not None:
                 try:
                     finished = lab.store.run(run_id).status.finished
                 except NotFoundError:
                     finished = True
+                # The store says finished a moment before the final event is published; wait
+                # for it, unless the run ended before this server held its events.
                 if finished and not lab.events.since(seq, run_id):
-                    return
+                    if final_sent or waited_for_final >= FINAL_EVENT_GRACE_S:
+                        return
+                    waited_for_final += EVENT_POLL_S
             await asyncio.sleep(EVENT_POLL_S)
             quiet += EVENT_POLL_S
             if quiet >= KEEP_ALIVE_S:

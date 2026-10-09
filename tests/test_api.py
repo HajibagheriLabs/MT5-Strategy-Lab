@@ -657,3 +657,33 @@ def test_downsampling_keeps_the_peak_and_the_worst_drawdown():
     assert small["server_time"].is_monotonic_increasing
     assert downsample(frame.head(50), 600) is not None
     assert len(downsample(frame.head(50), 600)) == 50
+
+
+# --- charts ------------------------------------------------------------------------------------
+
+
+def test_a_done_run_serves_its_price_bars_in_windows(settings, running_terminals):
+    from strategylab.charts import aggregate
+
+    def exporter(settings_, symbol, timeframe, start, end):
+        base = epoch(2025, 1, 1)
+        rows = [(base + 3600 * i, 1.1, 1.2, 1.0, 1.15) for i in range(24 * 31)]
+        frame = pd.DataFrame(rows, columns=["time", "open", "high", "low", "close"])
+        return aggregate(frame, timeframe)
+
+    app = make_app(settings, bar_exporter=exporter)
+    with TestClient(app, base_url=BASE_URL) as client:
+        ea = upload(client, "Cross.mq5", EA).json()
+        run_id = client.post("/api/runs", json=run_body(ea["hash"])).json()["id"]
+        wait_for(client, run_id, "done")
+        latest = client.get(f"/api/runs/{run_id}/bars?count=24").json()
+        assert latest["timeframe"] == "H1"
+        assert latest["total"] == 24 * 31
+        assert len(latest["bars"]) == 24
+        assert latest["bars"][-1]["time"] == epoch(2025, 1, 31, 23)
+        around = client.get(f"/api/runs/{run_id}/bars?around={epoch(2025, 1, 10, 12)}&count=4")
+        assert [b["time"] for b in around.json()["bars"]] == [
+            epoch(2025, 1, 10, h) for h in (10, 11, 12, 13)
+        ]
+        definitions = client.get("/api/metrics").json()
+        assert "net_profit" in definitions and "sharpe_ratio" in definitions
