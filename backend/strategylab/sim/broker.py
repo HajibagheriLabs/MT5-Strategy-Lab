@@ -302,6 +302,15 @@ class Broker:
     def _round_price(self, price: float) -> float:
         return round(price, self.digits)
 
+    # Prices arrive from the terminal with binary noise (an ask of 1.0866500000000001 for
+    # 1.08665), so a level counts as reached when the price is within half a point of it,
+    # which is comparing both at the symbol's digits.
+    def _at_or_below(self, prices: Any, level: float) -> Any:
+        return prices < level + self.point / 2
+
+    def _at_or_above(self, prices: Any, level: float) -> Any:
+        return prices > level - self.point / 2
+
     # --- money ---------------------------------------------------------------------------------
 
     def _to_account(self, amount_profit_ccy: float, price: float) -> float:
@@ -903,13 +912,13 @@ class Broker:
             offer(lo + int(new_day[0]), ("rollover", None))
         for order in self.orders:
             if order.type == BUY_LIMIT:
-                hits = asks <= order.price_open
+                hits = self._at_or_below(asks, order.price_open)
             elif order.type == SELL_LIMIT:
-                hits = bids >= order.price_open
+                hits = self._at_or_above(bids, order.price_open)
             elif order.type == BUY_STOP:
-                hits = asks >= order.price_open
+                hits = self._at_or_above(asks, order.price_open)
             else:
-                hits = bids <= order.price_open
+                hits = self._at_or_below(bids, order.price_open)
             found = np.flatnonzero(hits & tradable)
             if len(found):
                 offer(lo + int(found[0]), ("fill", order))
@@ -919,14 +928,17 @@ class Broker:
                     offer(lo + expired, ("expire", order))
         for position in self.positions:
             prices = bids if position.type == BUY else asks
+            hits = np.zeros(len(prices), bool)
             if position.type == BUY:
-                hits = (prices <= position.sl) if position.sl else np.zeros(len(prices), bool)
+                if position.sl:
+                    hits = self._at_or_below(prices, position.sl)
                 if position.tp:
-                    hits = hits | (prices >= position.tp)
+                    hits = hits | self._at_or_above(prices, position.tp)
             else:
-                hits = (prices >= position.sl) if position.sl else np.zeros(len(prices), bool)
+                if position.sl:
+                    hits = self._at_or_above(prices, position.sl)
                 if position.tp:
-                    hits = hits | (prices <= position.tp)
+                    hits = hits | self._at_or_below(prices, position.tp)
             found = np.flatnonzero(hits & tradable)
             if len(found):
                 offer(lo + int(found[0]), ("stop", position))
@@ -1033,9 +1045,9 @@ class Broker:
         buy = position.type == BUY
         price_now = self.bid if buy else self.ask
         if buy:
-            hit_sl = bool(position.sl) and price_now <= position.sl
+            hit_sl = bool(position.sl) and bool(self._at_or_below(price_now, position.sl))
         else:
-            hit_sl = bool(position.sl) and price_now >= position.sl
+            hit_sl = bool(position.sl) and bool(self._at_or_above(price_now, position.sl))
         level = position.sl if hit_sl else position.tp
         price = self._round_price(level if stream.synthetic else price_now)
         kind = "sl" if hit_sl else "tp"

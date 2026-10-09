@@ -162,9 +162,9 @@ class TestStopsInsideAMinute:
         assert broker.deals[-1].price == 1.1012
 
 
-def test_on_real_ticks_a_stop_fills_at_the_crossing_tick():
+def on_ticks(bids, asks):
+    """A broker on three recorded ticks at 10:00:01, 10:00:30 and 10:01:05, after the first."""
     import numpy as np
-    from simdata import POINT, spec
 
     from strategylab.sim.broker import AccountSettings, Broker
     from strategylab.sim.clock import SimClock
@@ -175,16 +175,34 @@ def test_on_real_ticks_a_stop_fills_at_the_crossing_tick():
     times = [ms(2025, 1, 6, 10, 0, 1), ms(2025, 1, 6, 10, 0, 30), ms(2025, 1, 6, 10, 1, 5)]
     ticks["time_msc"] = times
     ticks["time"] = np.array(times) // 1000
-    ticks["bid"] = [1.1000, 1.1000, 1.0985]  # the second tick jumps 5 points past the stop
-    ticks["ask"] = ticks["bid"] + 10 * POINT
+    ticks["bid"], ticks["ask"] = bids, asks
     market = Market("EURUSD@", m1, tick_stream(ticks, m1))
     broker = Broker(market, spec(), AccountSettings(10_000, "USD", 100), ms(2025, 1, 6, 10))
     clock = SimClock(market.stream.time_ms, ms(2025, 1, 6, 10), ms(2025, 1, 6, 10, 5),
                      lambda t: broker.advance(t, ms(2025, 1, 6, 10, 5)), broker.finish)  # fmt: skip
     clock.sleep(0)
+    return broker, clock
+
+
+def test_on_real_ticks_a_stop_fills_at_the_crossing_tick():
+    # The second tick jumps 5 points past the stop.
+    broker, clock = on_ticks([1.1000, 1.1000, 1.0985], [1.1010, 1.1010, 1.0995])
     broker.send(market_order(BUY, sl=1.0990))
     clock.sleep(120)
     assert (broker.deals[-1].price, broker.deals[-1].comment) == (1.0985, "sl 1.09900")
+
+
+def test_a_level_is_reached_by_a_price_a_hair_off_its_decimal_value():
+    # Found in recorded EURUSD ticks: an ask of 1.0866500000000001 reached a 1.08665 target.
+    broker, clock = on_ticks([1.0868, 1.0866, 1.0866], [1.0870, 1.0866500000000001, 1.0867])
+    broker.send(market_order(SELL, tp=1.08665))
+    clock.sleep(40)
+    deal = broker.deals[-1]
+    assert (deal.time_ms, deal.price, deal.comment) == (
+        ms(2025, 1, 6, 10, 0, 30),
+        1.08665,
+        "tp 1.08665",
+    )
 
 
 class TestPendingOrders:
