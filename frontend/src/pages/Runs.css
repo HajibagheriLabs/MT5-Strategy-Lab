@@ -1,0 +1,35 @@
+.runs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.runs__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+}
+
+.runs__tools > .field:first-child {
+  width: min(18rem, 100%);
+}
+
+.runs__tools > .field {
+  width: 11rem;
+}
+
+.runs__selection {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-left: auto;
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 899px) {
+  .runs__selection {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+}

@@ -46,6 +46,14 @@ function describe(health: Health | undefined, error: ApiError | undefined): Look
       detail: `The terminal is working on run ${terminal.busy_with_run}.`,
     }
   }
+  if (terminal.reading_history) {
+    return {
+      tone: 'active',
+      icon: <CircleNotch size={16} aria-hidden className="terminal-status__spin" />,
+      label: 'Reading history',
+      detail: 'StrategyLab has the terminal open to read price history for a chart or the symbol list. Runs wait for it.',
+    }
+  }
   return {
     tone: 'neutral',
     icon: <CheckCircle size={16} aria-hidden />,

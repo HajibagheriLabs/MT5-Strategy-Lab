@@ -1,0 +1,132 @@
+.new-run__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-9);
+  align-items: start;
+}
+
+.new-run__form {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.new-run__form .page-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.new-run__row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-6);
+}
+
+.new-run__row .field {
+  flex: 0 1 28rem;
+}
+
+.new-run__row .engine {
+  margin-bottom: var(--space-1);
+}
+
+.new-run__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-6) var(--space-8);
+  align-items: start;
+  max-width: 44rem;
+}
+
+.new-run__columns--3 {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  max-width: none;
+}
+
+.new-run__note {
+  margin-top: calc(-1 * var(--space-3));
+}
+
+.new-run__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.new-run__group + .new-run__group {
+  margin-top: var(--space-6);
+}
+
+.new-run__group-title {
+  padding: 0;
+  margin-bottom: var(--space-5);
+  font-weight: var(--weight-medium);
+}
+
+.param--bool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-6);
+}
+
+.new-run__summary {
+  position: sticky;
+  top: calc(var(--topbar) + var(--space-6));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.new-run__summary-title {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg-line);
+}
+
+.new-run__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-6);
+  font-size: var(--text-sm);
+}
+
+.new-run__facts dt {
+  color: var(--fg-2);
+}
+
+.new-run__fidelity {
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+}
+
+.new-run__summary .button {
+  align-self: stretch;
+}
+
+@media (max-width: 1099px) {
+  .new-run__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .new-run__summary {
+    position: static;
+  }
+}
+
+@media (max-width: 599px) {
+  .new-run__columns {
+    grid-template-columns: 1fr;
+  }
+
+  .new-run__row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

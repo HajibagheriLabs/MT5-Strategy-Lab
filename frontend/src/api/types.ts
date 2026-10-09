@@ -18,6 +18,7 @@ export type TerminalStatus = {
   notes: string[]
   running_pids: number[]
   busy_with_run: string | null
+  reading_history: boolean
 }
 
 export type Health = {
