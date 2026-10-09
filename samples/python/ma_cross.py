@@ -41,6 +41,16 @@ def my_position():
     return None
 
 
+def filling_mode(info):
+    # Brokers allow different fill policies per symbol; an order with one the symbol does not
+    # allow is rejected outright.
+    if info.filling_mode & 1:
+        return mt5.ORDER_FILLING_FOK
+    if info.filling_mode & 2:
+        return mt5.ORDER_FILLING_IOC
+    return mt5.ORDER_FILLING_RETURN
+
+
 def send(request):
     result = mt5.order_send(request)
     if result is None:
@@ -76,12 +86,13 @@ def open_position(direction):
             "magic": MAGIC,
             "comment": "ma_cross",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": filling_mode(info),
         }
     )
 
 
 def close_position(position):
+    info = mt5.symbol_info(SYMBOL)
     tick = mt5.symbol_info_tick(SYMBOL)
     if position.type == mt5.POSITION_TYPE_BUY:
         order_type, price = mt5.ORDER_TYPE_SELL, tick.bid
@@ -99,7 +110,7 @@ def close_position(position):
             "magic": MAGIC,
             "comment": "ma_cross exit",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": filling_mode(info),
         }
     )
 
