@@ -1,0 +1,26 @@
+.figure {
+  white-space: nowrap;
+}
+
+.figure--lg {
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl-line);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
+}
+
+.figure--profit {
+  color: var(--profit);
+}
+
+.figure--loss {
+  color: var(--loss);
+}
+
+.figure__unit {
+  margin-left: 0.35em;
+  color: var(--fg-3);
+  font-family: var(--font-sans);
+  font-size: 0.75em;
+  font-weight: var(--weight-regular);
+}

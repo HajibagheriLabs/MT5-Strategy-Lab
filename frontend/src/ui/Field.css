@@ -1,0 +1,125 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.field__label {
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  font-weight: var(--weight-medium);
+}
+
+.field__help,
+.field__error {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+}
+
+.field__help {
+  color: var(--fg-3);
+}
+
+.field__error {
+  color: var(--danger);
+}
+
+.field__error svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--control-md);
+  border: var(--hairline) solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--raised);
+  transition: border-color var(--duration-1) var(--ease);
+}
+
+.control:hover:not(.control--disabled),
+.force-hover .control {
+  border-color: var(--fg-2);
+}
+
+.control:focus-within,
+.force-focus .control {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.control--invalid,
+.control--invalid:hover {
+  border-color: var(--danger);
+}
+
+.control--disabled {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--fg-3);
+}
+
+.control__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  font-size: var(--text-md);
+  outline: none;
+}
+
+.control__input:disabled {
+  cursor: not-allowed;
+}
+
+.control__input::placeholder {
+  color: var(--fg-3);
+  opacity: 1;
+}
+
+.control__input--numeric {
+  text-align: right;
+}
+
+.control__suffix {
+  flex: none;
+  padding-right: var(--space-4);
+  color: var(--fg-3);
+  font-size: var(--text-sm);
+}
+
+.control--select .control__input {
+  appearance: none;
+  padding-right: var(--space-8);
+  cursor: pointer;
+}
+
+.control--select option {
+  background: var(--raised);
+  color: var(--fg);
+}
+
+.control__caret {
+  position: absolute;
+  right: var(--space-4);
+  color: var(--fg-2);
+  pointer-events: none;
+}
+
+/* Date inputs draw their own calendar glyph; match it to the theme. */
+.control__input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}

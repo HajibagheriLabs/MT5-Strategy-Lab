@@ -1,0 +1,28 @@
+.skeleton {
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: var(--radius);
+  background: var(--skeleton);
+  animation: skeleton-pulse 1.6s var(--ease) infinite;
+}
+
+.skeleton--text {
+  height: 0.75em;
+}
+
+.skeleton--block {
+  display: block;
+  height: 100%;
+}
+
+.skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

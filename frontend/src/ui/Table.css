@@ -1,0 +1,118 @@
+.table-frame {
+  position: relative;
+  overflow: auto;
+  border-top: var(--hairline) solid var(--line-strong);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-md);
+}
+
+.table--compact .table {
+  font-size: var(--text-sm);
+}
+
+.table__th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: var(--row);
+  padding: 0 var(--space-5);
+  background: var(--surface);
+  border-bottom: var(--hairline) solid var(--line-strong);
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.table__td {
+  height: var(--row);
+  padding: 0 var(--space-5);
+  border-bottom: var(--hairline) solid var(--line);
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table--compact .table__th,
+.table--compact .table__td {
+  height: var(--row-compact);
+  padding: 0 var(--space-4);
+}
+
+.table__row:last-child .table__td {
+  border-bottom: 0;
+}
+
+.table__cell--right {
+  text-align: right;
+}
+
+.table__cell--center {
+  text-align: center;
+}
+
+.table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.table__cell--right .table__sort {
+  flex-direction: row-reverse;
+}
+
+.table__sort:hover {
+  color: var(--fg);
+}
+
+.table__sort-hint {
+  opacity: 0;
+  transition: opacity var(--duration-1) var(--ease);
+}
+
+.table__sort:hover .table__sort-hint,
+.table__sort:focus-visible .table__sort-hint {
+  opacity: 0.6;
+}
+
+.table__row--interactive {
+  cursor: pointer;
+}
+
+.table__row--interactive:hover .table__td,
+.force-hover .table__row:first-child .table__td {
+  background: var(--hover);
+}
+
+.table__row--interactive:focus-visible {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: -2px;
+}
+
+.table__row--selected .table__td,
+.table__row--selected:hover .table__td {
+  background: var(--selected);
+}
+
+.table__row--selected .table__td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.table__empty {
+  padding: var(--space-9) var(--space-6);
+}
