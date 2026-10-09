@@ -4,6 +4,7 @@ python tasks.py setup     create .venv (Python 3.11+) and install backend and fr
 python tasks.py lint      ruff, eslint and the TypeScript compiler
 python tasks.py fmt       apply ruff fixes and formatting
 python tasks.py test      pytest (extra arguments are passed through)
+python tasks.py e2e       browser tests of the frontend against a fake API (Playwright)
 python tasks.py dev       backend and frontend dev servers together, Ctrl+C stops both
 python tasks.py build     production build of the frontend
 python tasks.py doctor    show what was discovered and compile a sample EA
@@ -135,6 +136,12 @@ def test(args: list[str]) -> int:
 
 
 @task
+def e2e(args: list[str]) -> int:
+    frontend_ready()
+    return run([npm(), "run", "test:e2e", "--", *args], cwd=FRONTEND)
+
+
+@task
 def build(args: list[str]) -> int:
     frontend_ready()
     return run([npm(), "run", "build"], cwd=FRONTEND)
@@ -178,20 +185,45 @@ def dev(args: list[str]) -> int:
         "--reload-dir",
         str(BACKEND / "strategylab"),
     ]
+    # On Windows the backend's reloader restarts its worker with a Ctrl+C that reaches every
+    # process on the console. The frontend gets a process group of its own so it ignores it,
+    # and this loop only stops when the backend has really gone (a Ctrl+C from the user ends it).
+    own_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if WINDOWS else 0
     procs = [
         subprocess.Popen(backend_cmd, cwd=ROOT, start_new_session=not WINDOWS),
-        subprocess.Popen([npm(), "run", "dev"], cwd=FRONTEND, start_new_session=not WINDOWS),
+        subprocess.Popen(
+            [npm(), "run", "dev"],
+            cwd=FRONTEND,
+            start_new_session=not WINDOWS,
+            creationflags=own_group,
+        ),
     ]
-    print(f"\nbackend  http://127.0.0.1:{BACKEND_PORT}\nfrontend http://127.0.0.1:5173\n")
+    print(f"\nbackend  http://{BACKEND_HOST}:{BACKEND_PORT}\nfrontend http://127.0.0.1:5173\n")
     try:
-        while all(proc.poll() is None for proc in procs):
-            time.sleep(0.5)
-    except KeyboardInterrupt:
-        pass
+        while True:
+            try:
+                while all(proc.poll() is None for proc in procs):
+                    time.sleep(0.5)
+                break
+            except KeyboardInterrupt:
+                if not WINDOWS or not still_running(procs[0], seconds=3.0):
+                    break
     finally:
         for proc in procs:
             stop_tree(proc)
     return 0
+
+
+def still_running(proc: subprocess.Popen[bytes], seconds: float) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            if proc.poll() is not None:
+                return False
+            time.sleep(0.25)
+        except KeyboardInterrupt:
+            continue
+    return True
 
 
 def main(argv: list[str]) -> int:
