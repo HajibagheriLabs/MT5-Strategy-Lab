@@ -12,10 +12,6 @@ export function formatNumber(value: number, decimals = 2, sign = false): string 
   return sign && rounded > 0 ? `+${body}` : body
 }
 
-export function formatDate(value: string | null | undefined): string {
-  return value ? value.slice(0, 10) : ''
-}
-
 /** Server time as MetaTrader shows it: 2025.03.07 10:00:00 reads as 2025-03-07 10:00:00. */
 export function formatDateTime(value: string | null | undefined, seconds = true): string {
   if (!value) return ''

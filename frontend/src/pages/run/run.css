@@ -35,7 +35,6 @@
   margin-top: 0;
 }
 
-/* Stages of a run in progress */
 .stages {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -102,7 +101,6 @@
   animation: spin 1.2s linear infinite;
 }
 
-/* Headline figures */
 .headline {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -157,7 +155,6 @@
   font-weight: var(--weight-regular);
 }
 
-/* Tabs */
 .deals-tab,
 .log-tab {
   display: flex;

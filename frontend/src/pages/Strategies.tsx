@@ -30,7 +30,7 @@ function errors(strategy: Strategy) {
   return strategy.diagnostics.filter((d) => d.severity === 'error').length
 }
 
-export function DiagnosticsList({ items }: { items: Diagnostic[] }) {
+function DiagnosticsList({ items }: { items: Diagnostic[] }) {
   return (
     <ol className="diagnostics">
       {items.map((d, index) => (

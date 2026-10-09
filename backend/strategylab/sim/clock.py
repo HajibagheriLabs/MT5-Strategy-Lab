@@ -45,10 +45,6 @@ class SimClock:
         if self.next_index < 0:
             self.next_index = int(np.searchsorted(self.event_times_ms, self.now_ms, side="left"))
 
-    @property
-    def now_seconds(self) -> float:
-        return self.now_ms / 1000
-
     def touch(self) -> None:
         """Count a call made by the strategy; refuse to go on if it never sleeps."""
         if self.finished:

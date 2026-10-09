@@ -13,7 +13,7 @@ const SECTIONS = [
   { to: '/compare', label: 'Compare' },
 ]
 
-export function ThemeSwitch() {
+function ThemeSwitch() {
   const { preference, setPreference } = useTheme()
   return (
     <SegmentedControl<Preference>

@@ -56,7 +56,6 @@ STOP_LIMIT_TYPES = (C["ORDER_TYPE_BUY_STOP_LIMIT"], C["ORDER_TYPE_SELL_STOP_LIMI
 HEDGING = C["ACCOUNT_MARGIN_MODE_RETAIL_HEDGING"]
 SYMBOL_FILLING_FOK, SYMBOL_FILLING_IOC = 1, 2
 EXECUTION_MARKET = C["SYMBOL_TRADE_EXECUTION_MARKET"]
-EXECUTION_EXCHANGE = C["SYMBOL_TRADE_EXECUTION_EXCHANGE"]
 MESSAGES = {
     DONE: "Request executed",
     PLACED: "Request placed",
@@ -458,7 +457,7 @@ class Broker:
             return bool(flags & SYMBOL_FILLING_IOC)
         if filling == C["ORDER_FILLING_RETURN"]:
             # Verified: market execution symbols reject Return; exchange execution allows it.
-            return execution not in (EXECUTION_MARKET,)
+            return execution != EXECUTION_MARKET
         return False
 
     def _stops_ok(self, buy: bool, reference: float, sl: float, tp: float) -> bool:

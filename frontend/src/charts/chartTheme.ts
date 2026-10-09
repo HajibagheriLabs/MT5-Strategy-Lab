@@ -26,7 +26,7 @@ export function withAlpha(hex: string, alpha: number): string {
 }
 
 /** Chart time as server time, `2025-04-14 13:00`, for the crosshair label. */
-export function formatChartTime(time: Time): string {
+function formatChartTime(time: Time): string {
   const seconds = typeof time === 'number' ? time : 0
   return new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ')
 }

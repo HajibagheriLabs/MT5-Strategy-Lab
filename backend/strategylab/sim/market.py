@@ -12,7 +12,6 @@ are what a live terminal would have shown then.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 import numpy as np
 
@@ -70,11 +69,6 @@ TIMEFRAME_MS[CONSTANTS["TIMEFRAME_D1"]] = DAY_MS
 TIMEFRAME_MS[CONSTANTS["TIMEFRAME_W1"]] = 7 * DAY_MS
 MONTHLY = CONSTANTS["TIMEFRAME_MN1"]
 WEEKLY = CONSTANTS["TIMEFRAME_W1"]
-TIMEFRAME_NAMES = {
-    value: name.removeprefix("TIMEFRAME_")
-    for name, value in CONSTANTS.items()
-    if name.startswith("TIMEFRAME_")
-}
 
 
 def bucket_start(times_ms: np.ndarray, timeframe: int) -> np.ndarray:
@@ -360,7 +354,3 @@ class _BarView:
         if self.forming is not None and stop == h + c + 1:
             parts.append(np.array([self.forming], dtype=RATE_DTYPE))
         return np.concatenate(parts) if parts else np.zeros(0, dtype=RATE_DTYPE)
-
-
-def server_datetime(time_ms: int) -> datetime:
-    return datetime.fromtimestamp(time_ms / 1000, UTC).replace(tzinfo=None)
