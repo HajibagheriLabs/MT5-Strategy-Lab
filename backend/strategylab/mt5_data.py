@@ -173,6 +173,40 @@ class TerminalSession:
             "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
         }
 
+    def history_extent(self, symbol: str, first_year: int) -> dict[str, Any]:
+        """The first and last M1 bar the terminal holds for a symbol, and how it describes it.
+
+        The first bar is looked for in `first_year` (the oldest yearly history file on disk) and
+        the years after it, so nothing older is requested: asking for a symbol's whole daily
+        series makes the terminal download every M1 bar the server has, which takes minutes.
+        """
+        self._select(symbol)
+        info = mt5.symbol_info(symbol)
+        if info is None:
+            raise MT5DataError(f"No information for {symbol}: {mt5.last_error()}")
+        first: int | None = None
+        this_year = datetime.now(UTC).year
+        for year in range(first_year, this_year + 1):
+            rates = mt5.copy_rates_range(
+                symbol,
+                mt5.TIMEFRAME_M1,
+                _server_epoch(date(year, 1, 1)),
+                _server_epoch(date(year + 1, 1, 1)),
+            )
+            if rates is not None and len(rates):
+                first = int(rates[0]["time"])
+                break
+        latest = self._settled(lambda: mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, 1))
+        last = int(latest[-1]["time"]) if latest is not None and len(latest) else None
+        return {
+            "name": symbol,
+            "description": info.description,
+            "digits": info.digits,
+            "path": info.path,
+            "first_bar": first,
+            "last_bar": last,
+        }
+
     def measure_clock(self, start: date) -> ServerClock:
         symbol = self.reference_fx_symbol()
         begin = datetime(start.year, start.month, start.day) - CLOCK_LOOKBACK
@@ -243,6 +277,12 @@ def open_session(install: TerminalInstall) -> Iterator[TerminalSession]:
                     "other terminals started from the same folder and try again."
                 )
             session = TerminalSession(install)
+            if was_running and session.max_bars < SESSION_MAX_BARS:
+                raise MT5DataError(
+                    f"The terminal is already running, with 'Max bars in chart' at "
+                    f"{session.max_bars}, which would cut history short. Close it so StrategyLab "
+                    "can start it with its own settings."
+                )
             if not was_running and session.max_bars < SESSION_MAX_BARS:
                 # The package starts its own copy, without these settings, if ours is not up
                 # in time; that copy would silently return only the last ~70 days of M1.
@@ -259,6 +299,15 @@ def open_session(install: TerminalInstall) -> Iterator[TerminalSession]:
         if not was_running:
             for running in terminals_using(install):
                 stop_process(running.pid)
+
+
+def measure_history(
+    install: TerminalInstall, first_years: dict[str, int]
+) -> tuple[str, list[dict[str, Any]]]:
+    """The server name and, for each symbol, its history extent (see history_extent)."""
+    with open_session(install) as session:
+        found = [session.history_extent(name, year) for name, year in first_years.items()]
+        return session.server, found
 
 
 def ensure_server_clock(
