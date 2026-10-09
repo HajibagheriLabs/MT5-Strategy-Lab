@@ -390,7 +390,8 @@ A level counts as reached when the price is within half a point of it, which com
 the symbol's digits. Exact comparison is wrong here: the terminal hands out some prices a hair
 off their decimal value (an ask of 1.0866500000000001 for 1.08665), and the parity study
 caught a take profit at 1.08665 that the tester filled on that tick and the simulator, comparing
-exactly, filled a tick later. Limit orders fill at their price; stop orders follow the same rule as stop losses. Stop-limit orders and close-by are not simulated and raise an error
+exactly, filled a tick later. Limit orders fill at their price; stop orders follow the same
+rule as stop losses. Stop-limit orders and close-by are not simulated and raise an error
 naming them. Commission is a fixed amount per lot per deal, zero unless set; margin is checked
 when opening, and stop-out is not simulated. Hedging and netting accounts are both supported.
 Profit in a currency other than the deposit's is converted at the closing price when the
@@ -513,11 +514,21 @@ What "available" means was measured, not assumed:
 - The API binds to 127.0.0.1, fixed in code and in `tasks.py`, with a test for each. Requests
   whose Host header names anything but this machine are refused (421), which stops a web page
   from reaching the API through DNS rebinding, and a request from a non-loopback address is
-  refused (403). There is no CORS: in development the frontend reaches the API through the dev
-  server's proxy.
+  refused (403). There is no CORS: in daily use the API serves the built frontend from the same
+  address, and in development the frontend reaches the API through the dev server's proxy.
 - Uploads are limited to 64 MB. A Python script is parsed in the server, never imported or run
   there; it runs in a separate isolated interpreter with a timeout. MQL5 is compiled by MetaEditor
   and runs in the tester with DLL imports and live trading switched off; archives may not carry
   executables or DLLs.
 - The Strategy Tester report repeats text the strategy chose (names, comments), so it is served
   with `Content-Security-Policy: sandbox`, as a document that can run nothing.
+
+### Serving the app
+
+`python tasks.py start` builds the frontend when any of its sources is newer than the last build,
+then runs the API, which serves `frontend/dist` at every path outside `/api`: a file when one
+exists, otherwise `index.html`, whose router shows the page. One process and one address, so
+the frontend needs no configuration and the API no CORS. Files are served with explicit media
+types, because Python on Windows reads them from the registry, where `.js` can be `text/plain`,
+and a browser will not run a module script served as that. Hashed assets are cached for good;
+`index.html` is revalidated, so a rebuild shows on the next load.
