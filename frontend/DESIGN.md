@@ -82,7 +82,8 @@ control, 6 to 12; between related controls, 8 to 12; between sections, 24 to 32.
 ### Radius
 
 One system: `--radius` is 2px, for buttons, inputs, badges, panels and dialogs alike. Nothing is
-pill-shaped and nothing is very round; the shape says "tool", not "app".
+pill-shaped and nothing is very round; the shape says "tool", not "app". The one exception is the dot of a radio
+button, which is round because that is what tells it from a checkbox.
 
 ### Elevation
 
@@ -123,7 +124,14 @@ animation except a skeleton's slow pulse and a running run's progress. Under
 | StatusBadge | A run's state as an icon and a word; only running (accent) and failed (danger) carry colour. |
 | Skeleton | Grey blocks in the shape of what is loading. |
 | Money / Figure | Formats a value with its sign and fixed decimals; money takes the profit or loss colour. |
-| TerminalStatus | In the top bar, fed by the health endpoint: ready, busy with a run, open elsewhere, not found. |
+| TerminalStatus | In the top bar, fed by the health endpoint: ready, running, reading history, open elsewhere, not found, server not answering. |
+| Checkbox | A native checkbox, drawn square; has an indeterminate state for a header box over rows. |
+| Combobox | A text box that filters a list (symbol search); only listed values can be chosen. |
+| RadioList | Choices that each need a line of explanation (the tick model). |
+| EngineBadge | Which engine produced a result. The simulator's is dashed and in the warning colour, so a simulated result is never mistaken for a tester result. |
+| VirtualTable | The table for thousands of rows (deals): only the rows in view are drawn, the header stays. |
+| LogView | A monospace well that follows new lines until the reader scrolls up, with a filter; journal warnings and errors take their colours. |
+| Charts | TradingView lightweight-charts, coloured from the tokens: balance with drawdown beneath, candles in neutral ink with entry and exit markers, compared runs told apart by colour and dash. The mouse wheel scrolls the page, never the chart. |
 
 Icons come from Phosphor, at one weight (regular) and one size per context (16px in controls,
 14px in tables). An icon that carries meaning has a text label or an `aria-label`.

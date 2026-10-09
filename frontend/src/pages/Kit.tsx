@@ -5,6 +5,11 @@ import { ApiError } from '../api/client'
 import type { Health, RunStatus } from '../api/types'
 import { TerminalStatusView } from '../shell/TerminalStatus'
 import { Button } from '../ui/Button'
+import { Checkbox } from '../ui/Checkbox'
+import { Combobox } from '../ui/Combobox'
+import { EngineBadge } from '../ui/EngineBadge'
+import { LogView } from '../ui/LogView'
+import { RadioList } from '../ui/RadioList'
 import { DateRange } from '../ui/DateRange'
 import type { Range } from '../ui/DateRange'
 import { Dialog } from '../ui/Dialog'
@@ -86,6 +91,7 @@ function health(overrides: Partial<Health> & { busy?: string | null; pids?: numb
       notes: [],
       running_pids: overrides.pids ?? [],
       busy_with_run: overrides.busy ?? null,
+      reading_history: false,
     },
     queue: { current: overrides.busy ?? null, queued: overrides.busy ? 2 : 0 },
     version: '0.1.0',
@@ -109,6 +115,8 @@ function KitPanel({ theme }: { theme: Theme }) {
   const [tab, setTab] = useState('overview')
   const [range, setRange] = useState<Range>({ from: '2025-01-01', to: '2026-01-01' })
   const [dialog, setDialog] = useState(false)
+  const [symbol, setSymbol] = useState('EURUSD@')
+  const [radio, setRadio] = useState('ohlc_m1')
 
   return (
     <div className="kit-panel" data-theme={theme}>
@@ -232,6 +240,41 @@ function KitPanel({ theme }: { theme: Theme }) {
         </div>
       </Section>
 
+      <Section title="Choices">
+        <Row label="Checkbox">
+          <Checkbox label="Unchecked" />
+          <Checkbox label="Checked" defaultChecked />
+          <Checkbox label="Some" indeterminate />
+          <Checkbox label="Disabled" disabled />
+        </Row>
+        <div className="kit-grid kit-stack">
+          <Combobox
+            label="Symbol"
+            value={symbol}
+            onChange={setSymbol}
+            options={[
+              { value: 'EURUSD@', label: 'EURUSD@', detail: '2000-07-05 to 2026-10-09', keywords: 'Euro vs US Dollar' },
+              { value: 'GBPUSD@', label: 'GBPUSD@', detail: '2000-01-02 to 2026-10-09', keywords: 'Great British Pound' },
+              { value: 'USDJPY@', label: 'USDJPY@', detail: '2000-01-07 to 2026-10-09', keywords: 'Japanese Yen' },
+            ]}
+            help="Type to narrow; only symbols with history are listed."
+          />
+          <Combobox label="Symbol with an error" value="" onChange={() => undefined} options={[]} error="Choose a symbol from the list." />
+        </div>
+        <div className="kit-stack">
+          <RadioList
+            label="Tick model"
+            value={radio}
+            onChange={setRadio}
+            options={[
+              { value: 'real_ticks', label: 'Real ticks', description: "The broker's recorded ticks: the closest to how orders would have filled." },
+              { value: 'ohlc_m1', label: '1 minute OHLC', description: 'Four prices per minute: fast, and accurate for strategies that act on closed bars.' },
+              { value: 'open_prices', label: 'Open prices', description: 'Not available here.', disabled: true },
+            ]}
+          />
+        </div>
+      </Section>
+
       <Section title="Tabs">
         <Tabs
           label="Result"
@@ -281,6 +324,12 @@ function KitPanel({ theme }: { theme: Theme }) {
           {(['queued', 'compiling', 'running', 'parsing', 'done', 'failed', 'cancelled'] as RunStatus[]).map((status) => (
             <StatusBadge key={status} status={status} />
           ))}
+        </Row>
+        <Row label="Engine">
+          <EngineBadge engine="mt5_tester" />
+          <EngineBadge engine="python_sim" />
+          <EngineBadge engine="mt5_tester" size="sm" />
+          <EngineBadge engine="python_sim" size="sm" />
         </Row>
         <Row label="Terminal">
           <TerminalStatusView health={undefined} error={undefined} />
@@ -383,6 +432,19 @@ function KitPanel({ theme }: { theme: Theme }) {
         >
           Its deals, report and logs are removed from this machine. The strategy stays.
         </Dialog>
+      </Section>
+
+      <Section title="Log">
+        <LogView
+          label="Sample log"
+          height="9rem"
+          lines={[
+            { source: 'agent', line: 'CS\t0\t09:23:05.553\tTester\tinitial deposit 10000.00 USD, leverage 1:100' },
+            { source: 'agent', line: 'CS\t2\t09:23:05.600\tTester\tnot enough money for the order, the order is skipped' },
+            { source: 'agent', line: 'CS\t3\t09:23:05.700\tTester\tsymbol NOPE not exist' },
+            { source: 'agent', line: 'CS\t0\t09:23:06.115\tTester\tfinal balance 10989.59 USD' },
+          ]}
+        />
       </Section>
 
       <Section title="Loading">

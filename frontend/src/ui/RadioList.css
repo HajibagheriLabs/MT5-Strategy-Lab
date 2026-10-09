@@ -1,0 +1,86 @@
+.radios {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.radios__legend {
+  padding: 0;
+  margin-bottom: var(--space-3);
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  font-weight: var(--weight-medium);
+}
+
+.radios__option {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-4);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.radios__option:hover {
+  background: var(--hover);
+}
+
+.radios__option--on {
+  background: var(--selected);
+}
+
+.radios__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.radios__dot {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: 0.1875rem;
+  border: var(--hairline) solid var(--control-border);
+  border-radius: 50%;
+  background: var(--raised);
+}
+
+.radios__input:checked ~ .radios__dot {
+  border: 4px solid var(--accent);
+}
+
+.radios__input:focus-visible ~ .radios__dot {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.radios__input:disabled ~ .radios__dot,
+.radios__input:disabled ~ .radios__text {
+  opacity: 0.45;
+}
+
+.radios__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.radios__label {
+  font-weight: var(--weight-medium);
+}
+
+.radios__description {
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+}
