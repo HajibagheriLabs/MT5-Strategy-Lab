@@ -443,3 +443,77 @@ Brokers quote longer than they trade: on the demo server, EURUSD and USDJPY are 
 `mql5/SessionExport.mq5` for one day in the tester, reads the `SymbolInfoSessionTrade` and
 `SymbolInfoSessionQuote` values it prints, and caches them beside the symbol's history. Without
 them the simulator accepts orders whenever there is a price and says so in the run's notes.
+
+The strategy's output is set to UTF-8 and line-buffered inside the subprocess. Isolated mode
+(`-I`) ignores `PYTHONIOENCODING`, and with the console code page a strategy that printed "€"
+stopped with an encoding error; line buffering is what lets the log be followed while it runs.
+
+### Inputs of a Python strategy
+
+A script has no `input` declarations, so `pystrategy.py` reads two common forms from its syntax
+tree, without importing it: module-level constants in capitals assigned a literal
+(`FAST_PERIOD = 12  # fast period`, the comment becoming the label), and argparse options
+(`add_argument("--fast", type=int, default=12, help=...)`). A run's value for an option is
+passed on the command line. A constant is changed by replacing its literal in the syntax tree
+before the script is compiled, so the file on disk is never touched and tracebacks keep their
+line numbers. Only values that differ from the declared default are applied.
+
+## Run history, the job queue and the API
+
+### One worker, one terminal
+
+`jobs.py` has a single worker thread. It holds the terminal lock for the whole of a run, and
+anything else that drives the terminal (measuring history for the symbol list) tries the same
+lock without waiting, answering from its last measurement when a run holds it. So a tester run,
+a history export and a data connection never overlap: the terminal's data folder can only be
+used by one copy at a time, and a second launch hands over to the first and exits.
+
+A run moves through `queued`, `compiling`, `running`, `parsing` and ends `done`, `failed` or
+`cancelled`. A run that produced a result but zero trades is `done`, with the outcome
+`zero_trades`; a timeout, a terminal that is already running, a report that never appeared and a
+compile error are `failed`, each with the engine's message. Cancelling a queued run just marks
+it; cancelling a running one closes the terminal through its window (killing it after 30 s if
+it does not close) or kills the strategy's process tree. On start, runs left unfinished by a
+previous server are marked failed with the stage they were in: the state of a terminal that was
+driven by a process that died is unknown, so they are never resumed.
+
+Every change of state and every log line (compile messages, the terminal's journals as they
+grow, the strategy's output) is a numbered event, the last 50 000 kept in memory, streamed to
+the browser as server-sent events. A browser that reconnects sends `Last-Event-ID` and gets what
+it missed. Results are stored as `result.json` and, for tables and charts, the deals and the
+balance series as parquet; the balance series is downsampled on the server, keeping each
+bucket's lowest and highest balance and deepest drawdown.
+
+### Available history
+
+What "available" means was measured, not assumed:
+
+- The server serves daily bars back to 2000 while the tester's journal said EURUSD M1 history
+  began on 2021-10-14. Asking for the whole daily series made the terminal download every M1 bar
+  back to 2000 (one file of about 22 MB per symbol and year, several minutes for a symbol), and
+  afterwards the tester reported history from 2000. The daily series is therefore never asked
+  for: the symbol list reads the yearly M1 files on disk
+  (`bases\<server>\history\<symbol>\<year>.hcc`) and measures only the first M1 bar of the oldest
+  of them and the latest bar.
+- Asking for the first tick of a month (`copy_ticks_from(start, 1)`) did not return within eight
+  minutes: the terminal synchronises every tick from that date on. Recorded ticks are listed by
+  the month files on disk (`bases\<server>\ticks\<symbol>\YYYYMM.tkc`) instead.
+- A run outside the measured range is refused with the range in the message. The end may reach
+  today even when the last bar on disk is older, since both engines bring history up to date
+  when they run.
+- A data connection refuses a terminal the user opened by hand with the default 100 000 bars per
+  chart, which would silently cut a year of M1 to about ten weeks.
+
+### Security posture for uploaded code
+
+- The API binds to 127.0.0.1, fixed in code and in `tasks.py`, with a test for each. Requests
+  whose Host header names anything but this machine are refused (421), which stops a web page
+  from reaching the API through DNS rebinding, and a request from a non-loopback address is
+  refused (403). There is no CORS: in development the frontend reaches the API through the dev
+  server's proxy.
+- Uploads are limited to 64 MB. A Python script is parsed in the server, never imported or run
+  there; it runs in a separate isolated interpreter with a timeout. MQL5 is compiled by MetaEditor
+  and runs in the tester with DLL imports and live trading switched off; archives may not carry
+  executables or DLLs.
+- The Strategy Tester report repeats text the strategy chose (names, comments), so it is served
+  with `Content-Security-Policy: sandbox`, as a document that can run nothing.
