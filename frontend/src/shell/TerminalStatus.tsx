@@ -2,6 +2,7 @@ import { CheckCircle, CircleNotch, PlugsConnected, WarningCircle, XCircle } from
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ApiError } from '../api/client'
+import { useAllEvents } from '../api/events'
 import { useHealth } from '../api/hooks'
 import type { Health } from '../api/types'
 import { Dialog } from '../ui/Dialog'
@@ -128,6 +129,10 @@ export function TerminalStatusView({ health, error }: ViewProps) {
 }
 
 export function TerminalStatus() {
-  const { data, error } = useHealth()
+  const { data, error, reload } = useHealth()
+  // A run starting or ending changes what the terminal is doing; the poll alone lags by seconds.
+  useAllEvents((event) => {
+    if (event.kind === 'state') reload()
+  })
   return <TerminalStatusView health={data} error={error} />
 }
