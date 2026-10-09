@@ -19,6 +19,7 @@ select = [
 ]
 ignore = [
     "ANN401",  # Any is sometimes the honest type at an I/O boundary
+    "N813",    # `import MetaTrader5 as mt5` is the package's documented idiom
 ]
 
 [lint.per-file-ignores]
