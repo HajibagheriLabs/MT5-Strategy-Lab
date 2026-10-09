@@ -1,12 +1,10 @@
-from pathlib import Path
-
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from strategylab.config import local_config_path
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    if (REPO_ROOT / "local.toml").exists():
+    if local_config_path().exists():
         return
     skip = pytest.mark.skip(reason="needs local.toml pointing at a MetaTrader 5 terminal")
     for item in items:
