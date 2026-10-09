@@ -4,6 +4,7 @@ import pytest
 
 MODULES = [
     "strategylab.api",
+    "strategylab.backtest",
     "strategylab.compiler",
     "strategylab.config",
     "strategylab.jobs",
@@ -11,8 +12,11 @@ MODULES = [
     "strategylab.mt5_data",
     "strategylab.params",
     "strategylab.report",
+    "strategylab.result",
+    "strategylab.server_clock",
     "strategylab.store",
     "strategylab.tester",
+    "strategylab.winproc",
     "strategylab.sim.broker",
     "strategylab.sim.clock",
     "strategylab.sim.runner",

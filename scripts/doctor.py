@@ -11,23 +11,12 @@ used, 3 the upload was rejected or MetaEditor could not run.
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-VENV = REPO_ROOT / ".venv"
+from _venv import ensure_venv
 
-
-def _reexec_in_venv() -> None:
-    """Rerun under the project's venv when started with another Python, e.g. a bare `python`."""
-    python = VENV / "Scripts" / "python.exe"
-    if not python.exists() or Path(sys.prefix).resolve() == VENV.resolve():
-        return
-    raise SystemExit(subprocess.call([str(python), *sys.argv]))
-
-
-_reexec_in_venv()
+ensure_venv()
 
 try:
     from strategylab.compiler import CompileError, CompileResult, compile_upload
