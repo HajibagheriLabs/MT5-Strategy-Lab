@@ -141,6 +141,10 @@ def money(value: float) -> str:
     return f"{value:,.2f}".replace(",", " ")
 
 
+def signed(value: float) -> str:
+    return "0" if abs(value) < 0.005 else f"{value:+,.2f}".replace(",", " ")
+
+
 def show_trade(trade: Trade | None) -> str:
     if trade is None:
         return "no trade"
@@ -181,6 +185,31 @@ def render(found: list[tuple[str, str, str, Comparison]], args: argparse.Namespa
             f"| {c.reference_trades} / {c.candidate_trades} | {pct(c.match_rate)} "
             f"| {pct(c.identical_rate)} | {money(c.net_profit[0])} / {money(c.net_profit[1])} "
             f"| {money(c.max_drawdown[0])} / {money(c.max_drawdown[1])} |"
+        )
+    out += [
+        "",
+        "## Where the difference in net profit comes from",
+        "",
+        "Simulator minus tester, in the deposit currency. For trades both sides took and closed "
+        "the same way, the difference in entry and exit prices is valued at the tester trade's "
+        "money per point; a pair that closed differently (stop loss against take profit) counts "
+        "whole under *other exit*, and a trade only one side took under *unpaired*. *Other* is "
+        "profit converted at a different rate and rounding to the cent.",
+        "",
+        "| Run | Comparison | Total | Entry prices | Exit prices | Swap | Other exit "
+        "| Unpaired | Other |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for key, label, _, c in found:
+        if not any(c.net_difference.values()):
+            continue
+        parts = c.net_difference
+        total = c.net_profit[1] - c.net_profit[0]
+        out.append(
+            f"| {key.replace('|', ' ').replace(' ticks_window', ' (tick window)')} | {label} "
+            f"| {signed(total)} | {signed(parts['entry_price'])} | {signed(parts['exit_price'])} "
+            f"| {signed(parts['swap'])} | {signed(parts['other_exit'])} "
+            f"| {signed(parts['unpaired'])} | {signed(parts['other'])} |"
         )
     out += ["", "## Details", ""]
     for key, label, _, c in found:

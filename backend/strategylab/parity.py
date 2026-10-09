@@ -26,6 +26,7 @@ class Trade:
     exit_price: float
     result: float
     swap: float
+    commission: float
     exit_kind: str
     level: float | None
     """The stop loss or take profit price that closed the trade, if one did."""
@@ -61,6 +62,7 @@ def trades(result: BacktestResult) -> list[Trade]:
                     exit_price=deal.price or 0.0,
                     result=round(deal.profit + deal.swap + deal.commission + opened.commission, 2),
                     swap=deal.swap,
+                    commission=round(deal.commission + opened.commission, 2),
                     exit_kind=kind,
                     level=level,
                 )
@@ -136,6 +138,8 @@ class Comparison:
     net_profit: tuple[float, float]
     max_drawdown: tuple[float, float]
     swap: tuple[float, float]
+    net_difference: dict[str, float] = field(default_factory=dict)
+    """The candidate's net profit minus the reference's, split by cause (see attribute)."""
     first_difference: tuple[Trade | None, Trade | None] | None = None
     examples: list[tuple[Trade | None, Trade | None]] = field(default_factory=list)
 
@@ -155,6 +159,39 @@ def _adverse_points(trade: Trade, point: float) -> float | None:
     closing_sell = trade.direction == "buy"
     worse = trade.level - trade.exit_price if closing_sell else trade.exit_price - trade.level
     return worse / point
+
+
+CAUSES = ("entry_price", "exit_price", "swap", "commission", "other_exit", "unpaired", "other")
+
+
+def attribute(pairs: list[tuple[Trade | None, Trade | None]]) -> dict[str, float]:
+    """Split the difference in net profit (candidate minus reference) by where it comes from.
+
+    For a pair that closed the same way, the price differences are valued at the reference
+    trade's money per unit of price, so a cheaper entry and a better exit are told apart. A pair
+    that closed differently (a stop loss against a take profit) counts whole under other_exit,
+    and a trade only one side took counts whole under unpaired. What is left (profit converted
+    at a different rate, rounding to the cent) is `other`, so the parts add up to the total.
+    """
+    parts = dict.fromkeys(CAUSES, 0.0)
+    total = 0.0
+    for a, b in pairs:
+        total += (b.result if b else 0.0) - (a.result if a else 0.0)
+        if a is None or b is None:
+            parts["unpaired"] += (b.result if b else 0.0) - (a.result if a else 0.0)
+            continue
+        if a.exit_kind != b.exit_kind:
+            parts["other_exit"] += b.result - a.result
+            continue
+        sign = 1 if a.direction == "buy" else -1
+        move = (a.exit_price - a.entry_price) * sign
+        value = (a.result - a.swap - a.commission) / move if abs(move) > 1e-12 else 0.0
+        parts["entry_price"] -= (b.entry_price - a.entry_price) * sign * value
+        parts["exit_price"] += (b.exit_price - a.exit_price) * sign * value
+        parts["swap"] += b.swap - a.swap
+        parts["commission"] += b.commission - a.commission
+    parts["other"] = total - sum(parts.values())
+    return {cause: round(amount, 2) for cause, amount in parts.items()}
 
 
 def identical(a: Trade, b: Trade, point: float) -> bool:
@@ -220,6 +257,7 @@ def compare(reference: BacktestResult, candidate: BacktestResult, point: float) 
             round(sum(d.swap for d in reference.deals), 2),
             round(sum(d.swap for d in candidate.deals), 2),
         ),
+        net_difference=attribute(pairs),
         first_difference=differing[0] if differing else None,
         examples=differing[:5],
     )

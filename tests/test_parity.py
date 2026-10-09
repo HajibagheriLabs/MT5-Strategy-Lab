@@ -109,6 +109,26 @@ def test_a_different_exit_and_an_extra_trade():
     assert tester_trade.entry_time == simulated.entry_time == T0
 
 
+def test_the_net_difference_is_split_by_cause():
+    candidate = [
+        deal(2, 0, "buy", "in", 1.10012),  # two points dearer: 0.20 at 0.10 per point
+        deal(3, 31, "sell", "out", 1.09809, -20.3, "sl 1.09810"),  # one point worse
+        deal(4, 60, "buy", "in", 1.10100),  # a trade the tester never took
+        deal(5, 70, "sell", "out", 1.10500, 40.0, "tp 1.10500"),
+        deal(6, 120, "sell", "in", 1.10000),
+        deal(7, 140, "buy", "out", 1.10200, -20.0, "sl 1.10200"),  # stopped, not a take profit
+    ]
+    comparison = compare(result(TESTER), result(candidate), POINT)
+    parts = comparison.net_difference
+    assert parts["entry_price"] == pytest.approx(-0.2)
+    assert parts["exit_price"] == pytest.approx(-0.1)
+    assert parts["unpaired"] == pytest.approx(40.0)
+    assert parts["other_exit"] == pytest.approx(-60.16)
+    assert parts["other"] == pytest.approx(0.0)
+    total = comparison.net_profit[1] - comparison.net_profit[0]
+    assert sum(parts.values()) == pytest.approx(total)
+
+
 def test_pairing_needs_the_same_direction_within_a_minute():
     a = trades(result(TESTER))
     shifted = [
